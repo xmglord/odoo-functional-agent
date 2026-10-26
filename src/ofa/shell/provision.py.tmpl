@@ -1,0 +1,28 @@
+# Fed to `odoo-bin shell` on stdin by ofa provision. $marker and $extra_groups are
+# substituted with string.Template before it runs.
+import secrets
+import uuid
+
+ICP = env['ir.config_parameter'].sudo()
+ICP.set_str('database.uuid', str(uuid.uuid1()))
+ICP.set_str('ofa.demo_marker', '$marker')
+admin = env.ref('base.user_admin')
+groups = admin.group_ids
+for xmlid in $extra_groups:
+    groups |= env.ref(xmlid)
+bot = env['res.users'].create({
+    'name': 'OFA bot',
+    'login': 'ofa_bot',
+    'group_ids': [(6, 0, groups.ids)],
+    'company_ids': [(6, 0, admin.company_ids.ids)],
+    'company_id': admin.company_id.id,
+})
+# A running server may still cache the registry of a dropped DB with this same
+# name. This copy and the dropped one ran the same steps from the same template,
+# so their signaling sequences match and the server would keep its stale caches.
+# A unique registry sequence makes it reload.
+env.cr.execute("SELECT setval('orm_signaling_registry_id_seq', %s)", [1_000_000 + secrets.randbelow(2**31 - 2_000_000)])
+env.cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
+key = env['res.users.apikeys'].with_user(bot).sudo()._generate('rpc', 'ofa', None)
+env.cr.commit()
+print('OFA_KEY=' + key)
