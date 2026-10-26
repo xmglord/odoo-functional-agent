@@ -1,0 +1,15 @@
+; Local Odoo 20 server config for ofa. Copy to <checkout>/odoo20.conf and fill in the paths.
+; No password here: libpq reads it from ~/.pgpass.
+[options]
+addons_path = /path/to/odoo20/enterprise,/path/to/odoo20/odoo/addons
+data_dir = /path/to/odoo20/data
+db_host = 127.0.0.1
+db_port = 5432
+db_user = your_pg_role
+http_port = 8070
+; Hardening: this server must only ever serve ofa demo databases.
+list_db = False
+dbfilter = ^ofa_demo_.*$
+; dbfilter does not apply to cron (odoo/service/server.py, cron_database_list); max_cron_threads = 0 is the control.
+max_cron_threads = 0
+proxy_mode = False

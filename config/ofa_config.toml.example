@@ -1,0 +1,27 @@
+# Local ofa config. Copy to ~/.config/ofa/config.toml (directory mode 0700) or to $OFA_CONFIG_DIR/config.toml.
+# Targets are written by `ofa provision`; do not add them by hand.
+
+[server]
+odoo_bin = "/path/to/odoo20/odoo/odoo-bin"
+python = "/path/to/venvs/odoo20/bin/python"
+odoo_conf = "/path/to/odoo20/odoo20.conf"
+url = "http://127.0.0.1:8070"
+odoo_version = "20.0"
+edition = "enterprise"            # or "community"
+template_db = "ofa_tpl_20"
+template_modules = ["crm", "sale_management", "purchase", "stock", "account_accountant", "l10n_mx", "l10n_mx_edi"]
+# Community edition: account_accountant and the l10n_mx* modules are not available. Use instead:
+# edition = "community"
+# template_modules = ["crm", "sale_management", "purchase", "stock", "account"]
+log_file = "~/.local/state/ofa/odoo20.log"
+xmlid_store = "ir_model_data"     # or "config_parameter"
+
+# Example of a target as `ofa provision demo1` writes it:
+# [targets.demo1]
+# db = "ofa_demo_demo1"
+# url = "http://127.0.0.1:8070"
+# marker = "00000000-0000-4000-8000-000000000000"
+# api_key_file = "~/.config/ofa/keys/ofa_demo_demo1.key"
+# created_at = "2026-10-23T12:00:00Z"
+# odoo_version = "20.0"
+# edition = "enterprise"
