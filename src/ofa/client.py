@@ -117,6 +117,12 @@ def open_client(target_name, *, cfg=None, required_edition=None):
         except EnvError as e:
             if e.code != "DB_NOT_SERVED" or attempt == STALE_POOL_RETRIES:
                 raise
+        except OdooError as e:
+            # The registered key does not work on this DB, so its marker cannot be
+            # checked: that is a guard refusal, not an environment problem.
+            if e.status in (401, 403):
+                raise GuardError("MARKER_UNVERIFIABLE", f"{target.db}: the registered key cannot read the marker") from None
+            raise
     # get_str returns "" for a missing key.
     if marker in ("", None):
         raise GuardError("MARKER_MISSING", f"{target.db} has no {MARKER_KEY}")

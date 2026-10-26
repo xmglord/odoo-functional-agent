@@ -52,3 +52,17 @@ class GuardTest(unittest.TestCase):
                     rc = cli.main(["probe"], commands=("probe",), package="guardprobe")
             self.assertEqual(rc, 3, code)
             self.assertTrue(err.getvalue().startswith(f"ofa: {code}:"), err.getvalue())
+
+
+class MarkerUnverifiableTest(unittest.TestCase):
+    def test_key_rejected_on_marker_read_is_a_guard_refusal(self):
+        # Red-team case 5: a registered demo-named DB where the key does not work.
+        from ofa import client
+        from tests.fakeodoo import FakeOdoo, Response, error_body
+        from tests.unit.test_client import make_cfg
+        with FakeOdoo(key="k", db="ofa_demo_t1") as fake:
+            fake.script("ir.config_parameter", "get_str",
+                        Response(401, error_body("werkzeug.exceptions.Unauthorized", "Invalid apikey")))
+            with self.assertRaises(GuardError) as cm:
+                client.open_client("t1", cfg=make_cfg(fake.url, key="k"))
+        self.assertEqual((cm.exception.code, cm.exception.exit_code), ("MARKER_UNVERIFIABLE", 3))
