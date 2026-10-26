@@ -1,0 +1,27 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Purchase and Inventory scenario fixture: two-step receipts",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": ["purchase_inventory"],
+  "operations": [
+    {"id": "op_010_install_purchase_stock", "type": "install_modules",
+     "modules": ["purchase", "stock", "purchase_stock"],
+     "depends_on": [],
+     "rationale": "Purchase orders, receipts and the purchase-stock link that creates receipts from orders.",
+     "knowledge_refs": ["knowledge/20.0/purchase_inventory/bill_control.md"]},
+    {"id": "op_020_multi_step_routes", "type": "set_settings",
+     "company": {"$ref": "base.main_company"},
+     "values": {"group_stock_multi_locations": true, "group_stock_adv_location": true},
+     "depends_on": ["op_010_install_purchase_stock"],
+     "rationale": "Multi-Step Routes, with Storage Locations set explicitly because a plan does not run the settings onchange.",
+     "knowledge_refs": ["knowledge/20.0/purchase_inventory/multi_step_routes.md"]},
+    {"id": "op_030_main_warehouse_two_steps", "type": "upsert_record",
+     "model": "stock.warehouse", "key": "pi_main_warehouse",
+     "values": {"reception_steps": "two_steps"},
+     "match": [["id", "=", {"$ref": "stock.warehouse0"}]],
+     "depends_on": ["op_020_multi_step_routes"],
+     "rationale": "Receive into WH/Input, then put away into WH/Stock with a separate storage transfer.",
+     "knowledge_refs": ["knowledge/20.0/purchase_inventory/multi_step_routes.md", "knowledge/20.0/purchase_inventory/backorders.md"]}
+  ]
+}
