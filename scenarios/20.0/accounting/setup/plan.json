@@ -1,0 +1,79 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Accounting scenarios fixture: export fiscal position and outstanding receipts",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": ["accounting"],
+  "operations": [
+    {
+      "id": "op_010_install_invoicing",
+      "type": "install_modules",
+      "modules": ["account"],
+      "depends_on": [],
+      "rationale": "Invoices, taxes, fiscal positions and payments live in the account module.",
+      "knowledge_refs": ["knowledge/20.0/accounting/invoicing_vs_accounting_apps.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_020_bank_inbound_outstanding",
+      "type": "upsert_record",
+      "model": "account.payment.method.line",
+      "key": "bank_inbound_manual",
+      "company": {"$ref": "base.main_company"},
+      "values": {"payment_account_id": {"$ref": "account.1_account_journal_payment_debit_account_id"}},
+      "match": [["journal_id", "=", {"$ref": "account.1_bank"}], ["payment_type", "=", "inbound"], ["code", "=", "manual"]],
+      "depends_on": ["op_010_install_invoicing"],
+      "rationale": "Customer payments by the bank journal's manual method post to Outstanding Receipts, so each payment has a journal entry to reconcile.",
+      "knowledge_refs": ["knowledge/20.0/accounting/payments_and_reconciliation.md", "knowledge/20.0/accounting/journals.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_export_fiscal_position",
+      "type": "upsert_record",
+      "model": "account.fiscal.position",
+      "key": "export_fpos",
+      "company": {"$ref": "base.main_company"},
+      "values": {"name": "OFA Export (outside the US)", "company_id": {"$ref": "base.main_company"}, "auto_apply": false},
+      "match": [["name", "=", "OFA Export (outside the US)"], ["company_id", "=", {"$ref": "base.main_company"}]],
+      "depends_on": ["op_010_install_invoicing"],
+      "rationale": "Export customers get their own fiscal position, assigned on the partner, so their invoices swap the domestic tax.",
+      "knowledge_refs": ["knowledge/20.0/accounting/fiscal_positions.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_export_sale_tax",
+      "type": "upsert_record",
+      "model": "account.tax",
+      "key": "export_sale_tax_0",
+      "company": {"$ref": "base.main_company"},
+      "values": {
+        "name": "OFA 0% Export",
+        "type_tax_use": "sale",
+        "amount_type": "percent",
+        "amount": 0.0,
+        "company_id": {"$ref": "base.main_company"},
+        "tax_group_id": {"$ref": "account.1_tax_group_0"},
+        "fiscal_position_ids": {"$set": [{"$ref": "__ofa__.export_fpos"}]},
+        "original_tax_ids": {"$set": [{"$ref": "account.1_sale_tax_template"}]}
+      },
+      "match": [["name", "=", "OFA 0% Export"], ["company_id", "=", {"$ref": "base.main_company"}], ["type_tax_use", "=", "sale"]],
+      "depends_on": ["op_030_export_fiscal_position"],
+      "rationale": "In 20.0 the mapping lives on the tax: the 0% export tax belongs to the export position and replaces the domestic 15% sales tax.",
+      "knowledge_refs": ["knowledge/20.0/accounting/fiscal_positions.md", "knowledge/20.0/accounting/taxes_and_tax_groups.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_export_customer",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "export_customer",
+      "company": {"$ref": "base.main_company"},
+      "values": {"name": "OFA Export Customer", "country_id": {"$ref": "base.ca"}, "property_account_position_id": {"$ref": "__ofa__.export_fpos"}},
+      "match": [["name", "=", "OFA Export Customer"]],
+      "depends_on": ["op_030_export_fiscal_position"],
+      "rationale": "A customer abroad with the export position set on it, which always wins over auto-detected positions.",
+      "knowledge_refs": ["knowledge/20.0/accounting/fiscal_positions.md"],
+      "edition": "community"
+    }
+  ]
+}
