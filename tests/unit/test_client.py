@@ -1,4 +1,6 @@
+import atexit
 import json
+import shutil
 import socket
 import tempfile
 import unittest
@@ -16,8 +18,13 @@ MARKER = "6f1c2d1e-0000-4000-8000-000000000001"
 TRACE = "Traceback (most recent call last):\n  File \"/home/someone/odoo/x.py\", line 1"
 
 
+_TMP_DIRS = []
+atexit.register(lambda: [shutil.rmtree(d, ignore_errors=True) for d in _TMP_DIRS])
+
+
 def make_cfg(url, key=KEY, db="ofa_demo_t1", store="ir_model_data"):
     tmp = Path(tempfile.mkdtemp())
+    _TMP_DIRS.append(tmp)
     key_file = tmp / "k.key"
     key_file.write_text(key)
     server = config.ServerCfg(odoo_bin=Path("/x/odoo-bin"), python=Path("/x/python"), odoo_conf=Path("/x/odoo20.conf"),
