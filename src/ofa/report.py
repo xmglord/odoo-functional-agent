@@ -6,6 +6,7 @@ Every link in report.md is relative to the run dir, so a run dir can be copied
 """
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -79,7 +80,9 @@ def _cell(value):
 
 
 def screenshot_name(scenario_id, label):
-    return f"{scenario_id}_{label}.png"
+    """`<scenario>_<label>.png`, with the label in snake_case so the file name needs no escaping."""
+    slug = re.sub(r"[^a-z0-9]+", "_", str(label).lower()).strip("_")
+    return f"{scenario_id}_{slug}.png"
 
 
 def render(run_dir, plan_dir=None):
@@ -142,7 +145,7 @@ def render(run_dir, plan_dir=None):
             name = screenshot_name(sc, label)
             if (sc, label) in shot_labels:
                 if (run_dir / SCREENSHOTS / name).is_file():
-                    entry += f", [screenshot]({SCREENSHOTS}/{name.replace(' ', '%20')})"
+                    entry += f", [screenshot]({SCREENSHOTS}/{name})"
                 else:
                     entry += ", screenshot not taken"
             lines.append(entry)
