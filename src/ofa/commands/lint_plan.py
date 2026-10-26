@@ -53,7 +53,7 @@ def handler(args):
         if md is None:
             print("plan.md: missing, prose not checked")
         else:
-            print(f"plan.md: {result.md_checked} dotted names checked ({result.md_static} only in the source); "
+            print(f"plan.md: {result.md_checked} names checked ({result.md_static} only in the source); "
                   f"not checked: {u['bare_names']} bare names, {u['path_spans']} path spans, "
                   f"{u['not_identifiers']} non-Odoo dotted names, {u['outside_backticks']} dotted names outside "
                   f"backticks, {u['fenced_blocks']} tokens in fenced blocks, {u['own_names']} plan/ofa names, "
