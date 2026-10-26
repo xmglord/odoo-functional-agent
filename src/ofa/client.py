@@ -10,6 +10,10 @@ from ofa.errors import EnvError, GuardError, OdooError, UsageError
 
 TIMEOUT = 120
 MARKER_KEY = "ofa.demo_marker"
+# After a DB is dropped and re-created under the same name, the shared server's
+# pool still holds connections to the old one; each request that borrows one
+# fails once (HTML 404) and the dead connection is discarded.
+STALE_POOL_RETRIES = 5
 
 # Methods that take no `ids` (@api.model). Every other method is a record method
 # and must get a non-empty `ids`, because the server silently does nothing on an
@@ -106,7 +110,13 @@ def open_client(target_name, *, cfg=None, required_edition=None):
     target = cfg.target(target_name)
     guard.check_static(target, required_edition)
     client = OdooClient(target, target.api_key(), cfg.server.xmlid_store, _OPEN)
-    marker = client.call("ir.config_parameter", "get_str", key=MARKER_KEY)
+    for attempt in range(STALE_POOL_RETRIES + 1):
+        try:
+            marker = client.call("ir.config_parameter", "get_str", key=MARKER_KEY)
+            break
+        except EnvError as e:
+            if e.code != "DB_NOT_SERVED" or attempt == STALE_POOL_RETRIES:
+                raise
     # get_str returns "" for a missing key.
     if marker in ("", None):
         raise GuardError("MARKER_MISSING", f"{target.db} has no {MARKER_KEY}")
