@@ -9,7 +9,7 @@ a hardened server config. No single layer is trusted alone.
 Every `ofa` command that talks to Odoo builds its client through one constructor, `open_client`, so no subcommand
 can skip these checks:
 
-- the target is listed in the machine-local registry `~/.config/ofa/targets.toml` (not in the repo)
+- the target is listed in the `[targets.*]` tables of the machine-local config `~/.config/ofa/config.toml` (not in the repo)
 - its database name matches `^ofa_demo_[a-z0-9_]{1,40}$`
 - its URL host is loopback (`127.0.0.1`, `localhost` or `::1`)
 - the database's `ir.config_parameter` key `ofa.demo_marker` equals the UUID that `ofa provision` recorded. It is
