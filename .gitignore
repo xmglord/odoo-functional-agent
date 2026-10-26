@@ -1,6 +1,6 @@
 .odoo/
 docs/plan/
-plans/
+/plans/
 runs/
 __pycache__/
 *.pyc

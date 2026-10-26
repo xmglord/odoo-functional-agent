@@ -1,4 +1,5 @@
 import contextlib
+import importlib.util
 import io
 import subprocess
 import sys
@@ -69,7 +70,10 @@ class CliTest(unittest.TestCase):
         self.assertEqual(help_out.returncode, 0)
         for name in cli.COMMANDS:
             self.assertIn(cli.cli_name(name), help_out.stdout)
-        for name in ("apply", "lint-plan"):
+        # Commands become real one task at a time; only the ones still missing must be stubs.
+        missing = [n for n in cli.COMMANDS if importlib.util.find_spec(f"ofa.commands.{n}") is None]
+        self.assertIn("lint_plan", missing)
+        for name in map(cli.cli_name, missing):
             r = subprocess.run([ofa, name], capture_output=True, text=True)
             self.assertEqual(r.returncode, 2)
             self.assertIn("not implemented", r.stderr)
