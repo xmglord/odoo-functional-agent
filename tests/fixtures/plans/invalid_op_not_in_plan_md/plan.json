@@ -1,0 +1,76 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Invalid fixture: OP_NOT_IN_PLAN_MD",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": [
+    "sales_crm"
+  ],
+  "operations": [
+    {
+      "id": "op_010_install",
+      "type": "install_modules",
+      "modules": [
+        "sale_management"
+      ],
+      "depends_on": [],
+      "rationale": "Fixture operation.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_020_tag",
+      "type": "upsert_record",
+      "model": "res.partner.category",
+      "key": "fixture_tag",
+      "values": {
+        "name": "Fixture tag"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Fixture tag"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install"
+      ],
+      "rationale": "Fixture operation.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_call",
+      "type": "call_method",
+      "model": "res.partner.category",
+      "target": {
+        "$ref": "__ofa__.fixture_tag"
+      },
+      "method": "action_archive",
+      "params": {},
+      "skip_if": {
+        "model": "res.partner.category",
+        "domain": [
+          [
+            "name",
+            "=",
+            "Fixture tag"
+          ],
+          [
+            "active",
+            "=",
+            false
+          ]
+        ],
+        "min_count": 1
+      },
+      "depends_on": [
+        "op_020_tag"
+      ],
+      "rationale": "Fixture operation.",
+      "knowledge_refs": [],
+      "edition": "community"
+    }
+  ]
+}

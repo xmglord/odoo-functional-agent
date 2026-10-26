@@ -1,0 +1,75 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Smoke: sales discounts, VIP tag and a Mexican subsidiary",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": ["sales_crm", "multi_company"],
+  "operations": [
+    {
+      "id": "op_010_install_sales",
+      "type": "install_modules",
+      "modules": ["sale_management"],
+      "depends_on": [],
+      "rationale": "Quotations and sales orders come from the Sales app.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_020_line_discounts",
+      "type": "set_settings",
+      "company": {"$ref": "base.main_company"},
+      "values": {"group_discount_per_so_line": true},
+      "depends_on": ["op_010_install_sales"],
+      "rationale": "The Discounts setting shows the discount column on sales order lines.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_vip_tag",
+      "type": "upsert_record",
+      "model": "res.partner.category",
+      "key": "smoke_vip_tag",
+      "values": {"name": "Smoke VIP", "color": 10},
+      "match": [["name", "=", "Smoke VIP"]],
+      "company": null,
+      "depends_on": [],
+      "rationale": "A contact tag lets the sales team filter VIP customers.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_company_mx",
+      "type": "upsert_record",
+      "model": "res.company",
+      "key": "smoke_company_mx",
+      "values": {
+        "name": "Smoke Demo MX SA de CV",
+        "country_id": {"$ref": "base.mx"},
+        "currency_id": {"$ref": "base.MXN"}
+      },
+      "match": [["name", "=", "Smoke Demo MX SA de CV"]],
+      "company": null,
+      "depends_on": [],
+      "rationale": "The Mexican subsidiary is a separate company in MXN.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_company_mx_chart",
+      "type": "call_method",
+      "model": "res.company",
+      "target": {"$ref": "__ofa__.smoke_company_mx"},
+      "method": "install_l10n_modules",
+      "params": {},
+      "skip_if": {
+        "model": "res.company",
+        "domain": [["id", "=", {"$ref": "__ofa__.smoke_company_mx"}], ["chart_template", "=", "mx"]],
+        "min_count": 1
+      },
+      "depends_on": ["op_040_company_mx"],
+      "rationale": "The subsidiary needs the Mexican localization and chart of accounts; skipped when the chart is already loaded.",
+      "knowledge_refs": [],
+      "edition": "community"
+    }
+  ]
+}
