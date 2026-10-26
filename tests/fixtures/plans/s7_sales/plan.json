@@ -1,0 +1,514 @@
+{
+  "format": "ofa.plan/1",
+  "title": "S7: Sales with a Mexican subsidiary (repeatability fixture)",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": [
+    "sales_crm",
+    "multi_company"
+  ],
+  "operations": [
+    {
+      "id": "op_010_install_sales",
+      "type": "install_modules",
+      "modules": [
+        "sale_management",
+        "crm"
+      ],
+      "depends_on": [],
+      "rationale": "Quotations, orders and the CRM pipeline come from Sales and CRM.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_015_install_loyalty",
+      "type": "install_modules",
+      "modules": [
+        "sale_loyalty"
+      ],
+      "depends_on": [
+        "op_010_install_sales"
+      ],
+      "rationale": "Loyalty and promotion programs for sales orders come from sale_loyalty.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_020_main_sales_settings",
+      "type": "set_settings",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "group_discount_per_so_line": true,
+        "group_product_pricelist": true
+      },
+      "depends_on": [
+        "op_010_install_sales"
+      ],
+      "rationale": "Per-line discounts and pricelists are group settings, turned on from the main company.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_company_mx",
+      "type": "upsert_record",
+      "model": "res.company",
+      "key": "s7_company_mx",
+      "values": {
+        "name": "S7 Ventas MX SA de CV",
+        "country_id": {
+          "$ref": "base.mx"
+        },
+        "currency_id": {
+          "$ref": "base.MXN"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Ventas MX SA de CV"
+        ]
+      ],
+      "company": null,
+      "depends_on": [],
+      "rationale": "The Mexican subsidiary is a separate company in MXN.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_company_mx_chart",
+      "type": "call_method",
+      "model": "res.company",
+      "target": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "method": "install_l10n_modules",
+      "params": {},
+      "skip_if": {
+        "model": "res.company",
+        "domain": [
+          [
+            "id",
+            "=",
+            {
+              "$ref": "__ofa__.s7_company_mx"
+            }
+          ],
+          [
+            "chart_template",
+            "=",
+            "mx"
+          ]
+        ],
+        "min_count": 1
+      },
+      "depends_on": [
+        "op_030_company_mx"
+      ],
+      "rationale": "The subsidiary needs the Mexican chart of accounts; skipped when it is already loaded.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_mx_quotation_settings",
+      "type": "set_settings",
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "values": {
+        "quotation_validity_days": 15,
+        "portal_confirmation_sign": true
+      },
+      "depends_on": [
+        "op_040_company_mx_chart",
+        "op_010_install_sales"
+      ],
+      "rationale": "Mexican quotations stay valid 15 days and are signed online; both are per-company settings.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_060_tag_industrial",
+      "type": "upsert_record",
+      "model": "res.partner.category",
+      "key": "s7_tag_industrial",
+      "values": {
+        "name": "S7 Industrial",
+        "color": 6
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Industrial"
+        ]
+      ],
+      "company": null,
+      "depends_on": [],
+      "rationale": "Industrial customers get their own contact tag.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_070_crm_tag_training",
+      "type": "upsert_record",
+      "model": "crm.tag",
+      "key": "s7_crm_tag_training",
+      "values": {
+        "name": "Training",
+        "color": 4
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Training"
+        ]
+      ],
+      "company": null,
+      "depends_on": [
+        "op_010_install_sales"
+      ],
+      "rationale": "Training opportunities reuse the demo CRM tag Training, adopted by name and recolored.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_080_team_mx",
+      "type": "upsert_record",
+      "model": "crm.team",
+      "key": "s7_team_mx",
+      "values": {
+        "name": "S7 Ventas MX",
+        "company_id": {
+          "$ref": "__ofa__.s7_company_mx"
+        },
+        "sequence": 20
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Ventas MX"
+        ]
+      ],
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_030_company_mx",
+        "op_010_install_sales"
+      ],
+      "rationale": "The subsidiary sells through its own sales team.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_090_stage_negotiation",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "s7_stage_negotiation",
+      "values": {
+        "name": "S7 Negociacion",
+        "sequence": 25,
+        "team_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.s7_team_mx"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Negociacion"
+        ]
+      ],
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_080_team_mx"
+      ],
+      "rationale": "The Mexican team negotiates before winning; the stage is only for that team.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_100_customer_mx",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "s7_customer_mx",
+      "values": {
+        "name": "S7 Cliente Industrial SA de CV",
+        "country_id": {
+          "$ref": "base.mx"
+        },
+        "category_id": {
+          "$set": [
+            {
+              "$ref": "__ofa__.s7_tag_industrial"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Cliente Industrial SA de CV"
+        ]
+      ],
+      "company": null,
+      "depends_on": [
+        "op_060_tag_industrial"
+      ],
+      "rationale": "The first Mexican industrial customer, tagged Industrial.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_110_pricelist_mx",
+      "type": "upsert_record",
+      "model": "product.pricelist",
+      "key": "s7_pricelist_mx",
+      "values": {
+        "name": "S7 Lista MX",
+        "currency_id": {
+          "$ref": "base.MXN"
+        },
+        "company_id": {
+          "$ref": "__ofa__.s7_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "S7 Lista MX"
+        ]
+      ],
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_030_company_mx",
+        "op_020_main_sales_settings"
+      ],
+      "rationale": "Mexican prices are in MXN in a pricelist of the subsidiary.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_120_product_install",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "s7_product_install",
+      "values": {
+        "name": "S7 Servicio de instalacion",
+        "type": "service",
+        "list_price": 1500.0,
+        "sale_ok": true,
+        "default_code": "S7-INST",
+        "invoice_policy": "order"
+      },
+      "match": [
+        [
+          "default_code",
+          "=",
+          "S7-INST"
+        ]
+      ],
+      "company": null,
+      "depends_on": [
+        "op_010_install_sales"
+      ],
+      "rationale": "Installation is a service product sold by unit and invoiced on order.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_130_price_install_mx",
+      "type": "upsert_record",
+      "model": "product.pricelist.item",
+      "key": "s7_price_install_mx",
+      "values": {
+        "pricelist_id": {
+          "$ref": "__ofa__.s7_pricelist_mx"
+        },
+        "applied_on": "1_product",
+        "product_tmpl_id": {
+          "$ref": "__ofa__.s7_product_install"
+        },
+        "compute_price": "fixed",
+        "fixed_price": 1200.0
+      },
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_110_pricelist_mx",
+        "op_120_product_install"
+      ],
+      "rationale": "In Mexico the installation has a fixed price of 1200 MXN.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_140_lead_mx",
+      "type": "upsert_record",
+      "model": "crm.lead",
+      "key": "s7_lead_mx",
+      "values": {
+        "name": "S7 Instalacion planta Monterrey",
+        "type": "opportunity",
+        "partner_id": {
+          "$ref": "__ofa__.s7_customer_mx"
+        },
+        "team_id": {
+          "$ref": "__ofa__.s7_team_mx"
+        },
+        "stage_id": {
+          "$ref": "__ofa__.s7_stage_negotiation"
+        },
+        "tag_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.s7_crm_tag_training"
+            }
+          ]
+        },
+        "expected_revenue": 3600.0,
+        "company_id": {
+          "$ref": "__ofa__.s7_company_mx"
+        }
+      },
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_090_stage_negotiation",
+        "op_100_customer_mx",
+        "op_070_crm_tag_training"
+      ],
+      "rationale": "The opportunity with the first customer sits in the Mexican pipeline, in negotiation.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_150_order_mx",
+      "type": "upsert_record",
+      "model": "sale.order",
+      "key": "s7_order_mx",
+      "values": {
+        "partner_id": {
+          "$ref": "__ofa__.s7_customer_mx"
+        },
+        "company_id": {
+          "$ref": "__ofa__.s7_company_mx"
+        },
+        "pricelist_id": {
+          "$ref": "__ofa__.s7_pricelist_mx"
+        },
+        "team_id": {
+          "$ref": "__ofa__.s7_team_mx"
+        },
+        "tag_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.s7_crm_tag_training"
+            }
+          ]
+        }
+      },
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_130_price_install_mx",
+        "op_140_lead_mx"
+      ],
+      "rationale": "The order for the first customer, in the subsidiary, priced with the Mexican pricelist.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_160_order_line_install",
+      "type": "upsert_record",
+      "model": "sale.order.line",
+      "key": "s7_order_line_install",
+      "values": {
+        "order_id": {
+          "$ref": "__ofa__.s7_order_mx"
+        },
+        "product_id": {
+          "$search": {
+            "model": "product.product",
+            "domain": [
+              [
+                "product_tmpl_id",
+                "=",
+                {
+                  "$ref": "__ofa__.s7_product_install"
+                }
+              ]
+            ]
+          }
+        },
+        "product_uom_qty": 3.0,
+        "price_unit": 1200.0,
+        "discount": 5.0
+      },
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_150_order_mx"
+      ],
+      "rationale": "Three installations at the pricelist price with a 5% line discount.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_170_confirm_order",
+      "type": "call_method",
+      "model": "sale.order",
+      "target": {
+        "$ref": "__ofa__.s7_order_mx"
+      },
+      "method": "action_confirm",
+      "params": {},
+      "skip_if": {
+        "model": "sale.order",
+        "domain": [
+          [
+            "id",
+            "=",
+            {
+              "$ref": "__ofa__.s7_order_mx"
+            }
+          ],
+          [
+            "state",
+            "=",
+            "sale"
+          ]
+        ],
+        "min_count": 1
+      },
+      "company": {
+        "$ref": "__ofa__.s7_company_mx"
+      },
+      "depends_on": [
+        "op_160_order_line_install"
+      ],
+      "rationale": "Confirm the order; skipped once it is a sales order.",
+      "knowledge_refs": [],
+      "edition": "community"
+    }
+  ]
+}

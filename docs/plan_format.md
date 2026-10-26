@@ -168,6 +168,11 @@ operation with `UNHANDLED_WIZARD`.
 | `failed` | The operation raised an error; the run stops here |
 | `skipped` | Not attempted because an earlier operation failed |
 
+After every create, write or settings save, `ofa` reads the written values back. A value that did not hold
+(Odoo recomputed or rejected it, as it does for a computed stored field such as `res.partner.is_company`)
+fails the operation with `VALUE_NOT_HELD`, naming the fields. Without this check such a plan would pass its
+first apply and then write the same value again on every re-apply.
+
 `pre_state: true` marks an `unchanged` result on the first apply of the plan to a database (one this plan
 dir has no earlier run for), when the operation does not depend on anything this run produced. The state
 already held before the plan ran, typically from the template's demo data, so that operation proves

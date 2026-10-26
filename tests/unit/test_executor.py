@@ -291,6 +291,48 @@ class ExecutorTest(ExecutorCase):
         self.assertEqual(len(sim.tables["res.partner.category"]), 1)
         self.assertEqual(self.statuses(self.apply())["op_030_vip_tag"], "unchanged")
 
+    def test_value_odoo_overrides_on_create_fails_the_op(self):
+        # S7: Odoo 20 recomputes res.partner.is_company from vat after create, so a written
+        # True is lost; without the read-back the op said created and every re-apply said updated.
+        sim = self.sim()
+        new = sim._new
+
+        def recompute(model, vals):
+            res_id = new(model, vals)
+            if model == "res.partner.category":
+                sim.tables[model][res_id]["color"] = 0
+            return res_id
+        sim._new = recompute
+        rec = self.apply()
+        op = rec["ops"][2]
+        self.assertEqual(op["status"], "failed")
+        self.assertTrue(op["error"].startswith("VALUE_NOT_HELD: res.partner.category "), op["error"])
+        self.assertIn("color did not hold after create", op["error"])
+        self.assertEqual({o["status"] for o in rec["ops"][3:]}, {"skipped"})
+
+    def test_value_odoo_overrides_on_write_fails_the_op(self):
+        sim = self.sim()
+        self.apply()
+        tag_id = next(iter(sim.tables["res.partner.category"]))
+        sim.tables["res.partner.category"][tag_id]["color"] = 3
+        apply_vals = sim._apply_vals
+
+        def stuck(row, vals):
+            apply_vals(row, {k: v for k, v in vals.items() if k != "color"})
+        sim._apply_vals = stuck
+        rec = self.apply()
+        self.assertEqual(rec["ops"][2]["status"], "failed")
+        self.assertIn("color did not hold after write", rec["ops"][2]["error"])
+
+    def test_setting_that_does_not_stick_fails_the_op(self):
+        sim = self.sim()
+        self.fake.script("res.config.settings", "execute", lambda req: True)  # saves nothing
+        rec = self.apply()
+        op = rec["ops"][1]
+        self.assertEqual(op["status"], "failed")
+        self.assertIn("group_discount_per_so_line did not hold after saving the settings", op["error"])
+        self.assertFalse(sim.settings["group_discount_per_so_line"])
+
     def test_match_not_unique_fails(self):
         sim = self.sim()
         sim.tables["res.partner.category"].update({90: {"name": "Smoke VIP"}, 91: {"name": "Smoke VIP"}})

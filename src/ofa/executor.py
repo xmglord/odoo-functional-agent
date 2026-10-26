@@ -66,6 +66,22 @@ def _diff(client, model, res_id, values, ctx):
     return {k: v for k, v in values.items() if not _same(v, row.get(k))}
 
 
+def _check_held(client, model, res_id, values, ctx, after):
+    """Read back after a write: every requested value must hold (S7).
+
+    Odoo can silently override a written value, e.g. a stored computed field
+    recomputed after create (Odoo 20 `res.partner.is_company` follows `vat`).
+    Without this check the op reports success, every re-apply writes the value
+    again (`updated`, never `unchanged`), and the DB flips between two states.
+    """
+    lost = _diff(client, model, res_id, values, ctx)
+    if lost:
+        raise ValidationError(
+            "VALUE_NOT_HELD",
+            f"{model} {res_id}: {', '.join(sorted(lost))} did not hold after {after}; Odoo computes or "
+            "overrides it, so set what it derives from instead")
+
+
 def _install_modules(client, op, ctx):
     names = op["modules"]
     rows = client.call(MODULE_MODEL, "search_read", domain=[["name", "in", names]], fields=["name", "state"], context=ctx)
@@ -87,6 +103,8 @@ def _set_settings(client, op, ctx):
         return "unchanged", [probe]
     sid = client.call(SETTINGS_MODEL, "create", vals_list=[values], context=ctx)[0]
     client.call(SETTINGS_MODEL, "execute", ids=[sid], context=ctx)
+    check = client.call(SETTINGS_MODEL, "create", vals_list=[{}], context=ctx)[0]
+    _check_held(client, SETTINGS_MODEL, check, values, ctx, "saving the settings")
     return "updated", [sid]
 
 
@@ -107,6 +125,7 @@ def _upsert_record(client, op, ctx):
         if not diff:
             return "unchanged", [res_id]
         client.call(model, "write", ids=[res_id], vals=diff, context=ctx)
+        _check_held(client, model, res_id, diff, ctx, "write")
         return "updated", [res_id]
     match = op.get("match")
     if match:
@@ -119,11 +138,13 @@ def _upsert_record(client, op, ctx):
             diff = _diff(client, model, res_id, values, ctx)
             if diff:
                 client.call(model, "write", ids=[res_id], vals=diff, context=ctx)
+                _check_held(client, model, res_id, diff, ctx, "write")
             return "adopted", [res_id]
     res_id = client.call(model, "create", vals_list=[values], context=ctx)[0]
     refs.store_ofa(client, key, model, res_id)
     if model == COMPANY_MODEL:
         _grant_company(client, res_id)
+    _check_held(client, model, res_id, values, ctx, "create")
     return "created", [res_id]
 
 
