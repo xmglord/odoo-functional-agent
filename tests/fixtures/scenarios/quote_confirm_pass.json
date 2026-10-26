@@ -1,0 +1,38 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "quote_confirm_pass",
+  "area": "sales_crm",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "description": "A quotation for a known customer is confirmed into a sales order with one delivery.",
+  "requires": {"modules": ["sale_management"]},
+  "preconditions": [
+    {"id": "p010", "action": "search", "model": "res.partner",
+     "domain": [["id", "=", {"$ref": "base.res_partner_12"}]], "expect": {"count": 1}}
+  ],
+  "steps": [
+    {"id": "s010", "action": "create", "model": "sale.order",
+     "values": {"partner_id": {"$ref": "base.res_partner_12"},
+                "order_line": {"$create": [{"product_id": {"$search": {"model": "product.product", "domain": [["default_code", "=", "DEMO_001"]]}},
+                                            "product_uom_qty": 2}]}},
+     "save_as": "so"},
+    {"id": "s020", "action": "call", "model": "sale.order", "target": {"$var": "so"}, "method": "action_confirm"},
+    {"id": "s030", "action": "search", "model": "stock.picking", "domain": [["sale_id", "=", {"$var": "so"}]],
+     "save_as": "pickings", "expect": {"count": {"gte": 1, "lte": 1}}},
+    {"id": "s040", "action": "read", "model": "sale.order", "target": {"$var": "so"}, "fields": ["name", "state"],
+     "save_as": "so_rows", "expect": {"count": 1, "fields": {"state": {"eq": "sale"}}}},
+    {"id": "s050", "action": "assert", "model": "sale.order", "target": {"$var": "so"},
+     "expect": {"fields": {
+       "state": {"eq": "sale", "ne": "draft", "in": ["sale", "done"], "not_in": ["cancel"]},
+       "amount_total": {"gt": 0, "gte": 120, "lt": 1000, "lte": 120},
+       "name": {"contains": "S000"},
+       "order_line": {"contains": 71},
+       "partner_id": {"eq": {"$ref": "base.res_partner_12"}}}}},
+    {"id": "s060", "action": "write", "model": "sale.order", "target": {"$var": "so"}, "values": {"note": "checked"}}
+  ],
+  "evidence": [
+    {"label": "confirmed_order", "model": "sale.order", "target": {"$var": "so"},
+     "fields": ["name", "state", "amount_total"], "screenshot": true},
+    {"label": "deliveries", "model": "stock.picking", "target": {"$var": "pickings"}, "fields": ["name"]}
+  ]
+}

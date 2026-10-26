@@ -1,0 +1,26 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Dump fixture: modules, one setting, three upserted records",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": ["sales_crm"],
+  "operations": [
+    {"id": "op_010_install", "type": "install_modules", "modules": ["sale_management", "crm"],
+     "depends_on": [], "rationale": "sales and CRM", "knowledge_refs": [], "edition": "community"},
+    {"id": "op_020_settings", "type": "set_settings", "company": {"$ref": "base.main_company"},
+     "values": {"group_discount_per_so_line": true, "deposit_default_product_id": {"$search": {"model": "product.product", "domain": [["name", "=", "Down payment"]]}}},
+     "depends_on": ["op_010_install"], "rationale": "discounts and down payments", "knowledge_refs": [], "edition": "community"},
+    {"id": "op_030_tag", "type": "upsert_record", "model": "res.partner.category", "key": "tag_vip",
+     "values": {"name": "VIP", "color": 3, "parent_id": false}, "match": [["name", "=", "VIP"]],
+     "depends_on": [], "rationale": "VIP tag", "knowledge_refs": [], "edition": "community"},
+    {"id": "op_040_company", "type": "upsert_record", "model": "res.company", "key": "company_mx",
+     "values": {"name": "Demo MX", "country_id": {"$ref": "base.mx"}, "write_date": "ignored"},
+     "match": [["name", "=", "Demo MX"]], "depends_on": [], "rationale": "second company", "knowledge_refs": [], "edition": "community"},
+    {"id": "op_050_partner", "type": "upsert_record", "model": "res.partner", "key": "partner_vip",
+     "values": {"name": "Demo customer", "category_id": {"$set": [{"$ref": "__ofa__.tag_vip"}]}},
+     "match": [["name", "=", "Demo customer"]], "depends_on": ["op_030_tag"], "rationale": "a tagged customer", "knowledge_refs": [], "edition": "community"},
+    {"id": "op_060_call", "type": "call_method", "model": "res.company", "target": {"$ref": "__ofa__.company_mx"},
+     "method": "action_noop", "params": {}, "skip_if": {"model": "res.company", "domain": [], "min_count": 1},
+     "depends_on": ["op_040_company"], "rationale": "not dumped", "knowledge_refs": [], "edition": "community"}
+  ]
+}
