@@ -109,6 +109,12 @@ these first.
   (`odoo/odoo/addons/base/models/ir_config_parameter.py@20.0`).
 - **`res.users.group_ids`.** The user's groups field is `group_ids` (with `all_group_ids` for groups plus implied
   groups), not `groups_id` (`odoo/odoo/addons/base/models/res_users.py@20.0`).
+- **Access rights are `ir.access`.** The access-rights model is `ir.access` (`name`, `model_id`, `group_id`,
+  `operation`, ...), not `ir.model.access` with its `perm_read`/`perm_write`/... columns
+  (`odoo/odoo/addons/base/models/ir_access.py@20.0`).
+- **No `sale.order.require_payment`.** The order has no "online payment required" flag any more. It has
+  `prepayment_percent`, computed from the company: the company's `prepayment_percent` when `portal_confirmation_pay`
+  is set, else 0 (`odoo/addons/sale/models/sale_order.py@20.0`, `_compute_prepayment_percent`).
 - **`product_and_description` on sales order lines.** The order line list shows product and description in a single
   `product_and_description` column that groups `product_template_id`/`product_id` and `name`
   (`odoo/addons/sale/views/sale_order_views.xml@20.0`). It is a view column, not a model field: plans and checks still
