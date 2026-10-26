@@ -25,7 +25,7 @@ title: Discounts on sales order lines
 area: sales_crm
 odoo_version: 20.0
 edition: community
-source: [https://www.odoo.com/documentation/20.0/applications/sales/sales.html, odoo/addons/sale/models/res_config_settings.py@20.0]
+source: [https://www.odoo.com/documentation/20.0/applications/sales/sales.html, odoo/addons/sale/wizard/res_config_settings.py@20.0]
 verified_on: 2026-10-23
 verified_against: [source, live]
 modules: [sale]
