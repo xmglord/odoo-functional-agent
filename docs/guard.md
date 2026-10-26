@@ -17,7 +17,8 @@ can skip these checks:
   (`ir.config_parameter/get_str`) needs the `base.group_system` group. The `ofa_bot` user has it because
   provisioning copies the admin user's `group_ids` to it; this was confirmed live (`has_group('base.group_system')`
   is true for the bot). A missing marker reads back as an empty string, not null; the client treats both as
-  `MARKER_MISSING`.
+  `MARKER_MISSING`. When the registered key is rejected while reading the marker (401/403), the marker cannot be
+  verified and the client refuses with `MARKER_UNVERIFIABLE` (exit 3), not as an environment error.
 
 Only `provision` writes markers and creates API keys, and API keys exist only for demo databases. `drop` and
 `reset` act only on names that pass the same checks. A database `ofa` did not create fails the marker check even
@@ -29,8 +30,9 @@ the JSON-2 API). That is layer b's job.
 ## Layer b: the PreToolUse hook
 
 The plugin ships `hooks/hooks.json`, which runs `hooks/ofa_guard_hook.py` before every `Bash` call and every
-`mcp__firefox-devtools__navigate_page` / `mcp__firefox-devtools__new_page` call. The hook reads the event JSON on
-stdin (`tool_name`, `tool_input.command` or `tool_input.url`) and either exits 0 with no output (allow) or exits 2
+`mcp__firefox-devtools__navigate_page` / `mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script`
+call. The hook reads the event JSON on stdin (`tool_name`, and `tool_input.command`, `tool_input.url` or
+`tool_input.function`) and either exits 0 with no output (allow) or exits 2
 with one line on stderr (deny); Claude Code shows that line to the model.
 
 ### Failure handling
@@ -111,6 +113,15 @@ Everything else is denied, including hosted Odoo instances (`https://<name>.odoo
 no port, no wildcards) and the prefix with `str.startswith`, so end the prefix with `/`. Never add a host that
 serves an Odoo database. Add an allow case and a neighbouring deny case to `tests/hook/test_ofa_guard_hook.py`.
 
+### In-page script rule
+
+`evaluate_script` runs JavaScript in the page, which can navigate anywhere without `navigate_page`. Its
+`tool_input.function` is denied when it mentions a navigation or network API (`location`, `href`, `open(`,
+`fetch(`, `XMLHttpRequest`, `sendBeacon`, `WebSocket`, `EventSource`, `import(`, `history`, `submit(`, `.click(`,
+`document.write`, `src =`), computed access to a global (`window[...]`, `globalThis[...]`, `document[...]` and
+similar), dynamic code (`eval(`, `Function(`, string `setTimeout`) or a `\u` / `\x` escape. The scripts ofa uses
+(render probes, reading field values) need none of these.
+
 ## Server hardening
 
 The local Odoo server that serves demo databases runs with:
@@ -139,12 +150,15 @@ The hook is pattern matching. It narrows what a careless or adversarial command 
 impossible. Layer a, the marker and the server hardening are the backstop for everything that goes through Odoo's
 HTTP API. Known gaps:
 
-- **In-page navigation.** `mcp__firefox-devtools__evaluate_script` (for example `location.href = ...`) and
-  in-page clicks (`click_by_uid` on a link) can navigate to a non-loopback host without `navigate_page`. The hook
-  does not inspect those tools.
+- **In-page navigation.** In-page clicks (`click_by_uid` on a link, or on a button whose handler navigates) can
+  reach a non-loopback host without `navigate_page`; the hook does not inspect click tools, because it cannot know
+  where a click leads. `evaluate_script` is covered by the in-page script rule, but that rule is a deny list: a
+  script that reaches navigation through a spelling it does not list is not caught.
 - **Script files.** A script written to disk and then run (`python3 x.py`, `bash x.sh`, `source x.sh`) is not
-  inspected; only the command line is. Layer a still holds for anything that goes through Odoo's API, but a script
-  that runs `psql` directly is not caught. A here-document written to a file and then executed
+  inspected; only the command line is. Odoo's HTTP API stays closed to non-demo databases even then: the server's
+  `dbfilter` answers 404 for any other database, also with a valid demo API key (measured). A script that talks to
+  Postgres directly (`psql` in a subprocess, a Postgres driver) is not caught: the demo server shares its Postgres
+  role with the machine's other databases, so only the hook stands between such a script and them. A here-document written to a file and then executed
   (`cat > x.sh <<'EOF'` followed by `bash x.sh`) is this same gap.
 - **Indirect execution not modelled.** Tools that run a command from configuration or an argument the hook does
   not recognise as a command: `git -c core.pager=...`, git aliases, `make` targets, `npm run` scripts, editor

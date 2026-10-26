@@ -216,6 +216,58 @@ class NavigationRuleTest(unittest.TestCase):
         self.assertEqual(run(json.dumps(nav_event("http://127.0.0.1:8070/odoo", NEW_PAGE))), (0, ""))
 
 
+EVALUATE = "mcp__firefox-devtools__evaluate_script"
+SCRIPT_DENY = [
+    "() => { location.href = 'https://erp.example.com/' }",
+    "() => window.location.assign('https://erp.example.com/')",
+    "() => document.location = 'https://x.example/'",
+    "() => window.open('https://erp.example.com/')",
+    "() => fetch('https://erp.example.com/api')",
+    "() => { const x = new XMLHttpRequest(); }",
+    "() => navigator.sendBeacon('https://x.example/', 'd')",
+    "() => new WebSocket('wss://x.example/')",
+    "() => import('https://x.example/m.js')",
+    "() => history.pushState({}, '', '/x')",
+    "() => document.forms[0].submit()",
+    "() => document.querySelector('a').click()",
+    "() => { document.querySelector('img').src = 'https://x.example/p.png' }",
+    "() => window['loc' + 'ation'].href",
+    "() => globalThis['fe' + 'tch']('https://x.example/')",
+    "() => eval('loc' + 'ation')",
+    "() => Function('return this')()",
+    "() => '\\u006cocation'",
+]
+SCRIPT_ALLOW = [
+    "() => new Promise(r => requestAnimationFrame(() => r(true)))",
+    "() => document.title",
+    "() => document.querySelector('input[name=\"name\"]').value",
+    "() => document.visibilityState",
+    "() => Array.from(document.querySelectorAll('.o_field_widget')).length",
+]
+
+
+class ScriptRuleTest(unittest.TestCase):
+    """Red-team case 8: in-page navigation through evaluate_script."""
+
+    def event(self, fn):
+        return json.dumps({"tool_name": EVALUATE, "tool_input": {"function": fn}})
+
+    def test_deny(self):
+        for fn in SCRIPT_DENY:
+            with self.subTest(fn=fn):
+                code, err = run(self.event(fn))
+                self.assertEqual(code, 2)
+                self.assertTrue(err.startswith("ofa guard: "))
+
+    def test_allow(self):
+        for fn in SCRIPT_ALLOW:
+            with self.subTest(fn=fn):
+                self.assertEqual(run(self.event(fn)), (0, ""))
+
+    def test_missing_function_fails_closed(self):
+        self.assertEqual(run(json.dumps({"tool_name": EVALUATE, "tool_input": {}}))[0], 2)
+
+
 class FailClosedTest(unittest.TestCase):
     def assert_internal_error(self, stdin_text):
         code, err = run(stdin_text)
@@ -270,7 +322,7 @@ class HooksJsonTest(unittest.TestCase):
     def test_handlers(self):
         data = json.loads((HOOK.parent / "hooks.json").read_text())
         entries = data["hooks"]["PreToolUse"]
-        self.assertEqual({e["matcher"] for e in entries}, {"Bash", f"{NAVIGATE}|{NEW_PAGE}"})
+        self.assertEqual({e["matcher"] for e in entries}, {"Bash", f"{NAVIGATE}|{NEW_PAGE}|{EVALUATE}"})
         for e in entries:
             for h in e["hooks"]:
                 self.assertEqual(h["type"], "command")

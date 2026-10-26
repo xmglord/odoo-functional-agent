@@ -19,6 +19,18 @@ MAX_DEPTH = 5
 
 BASH_TOOL = "Bash"
 NAV_TOOLS = frozenset({"mcp__firefox-devtools__navigate_page", "mcp__firefox-devtools__new_page"})
+SCRIPT_TOOL = "mcp__firefox-devtools__evaluate_script"
+
+# In-page JavaScript must never navigate or talk to the network: that would reach
+# any host without going through the navigation rule. ofa's own scripts (render
+# probes, reading field values) need none of this. Computed access to globals and
+# dynamic code are denied too, since they are the obvious way to spell these.
+SCRIPT_DENY = re.compile(
+    r"\blocation\b|\bhref\b|\bopen\s*\(|\bfetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource"
+    r"|\bimport\s*\(|\bhistory\b|\bsubmit\s*\(|\.click\s*\(|document\.write|\bsrc\s*="
+    r"|\b(?:window|self|globalThis|top|parent|frames|document)\s*\[|\beval\s*\(|\bFunction\s*\(|\bsetTimeout\s*\(\s*['\"`]"
+    r"|\\u|\\x"
+)
 
 # (host, path prefix) pairs a browser tool may open besides the loopback demo server.
 NAV_ALLOWLIST = (
@@ -395,6 +407,12 @@ def check_url(url):
     raise Deny(f"navigation to {host}{path} is not on the allowlist")
 
 
+def check_script(fn):
+    m = SCRIPT_DENY.search(fn)
+    if m:
+        raise Deny(f"in-page script uses {m.group(0)!r}; scripts may not navigate or use the network")
+
+
 # --------------------------------------------------------------------- main
 
 def decide(event):
@@ -408,6 +426,11 @@ def decide(event):
         if not isinstance(cmd, str):
             raise TypeError("command is not a string")
         check_bash(cmd)
+    elif tool == SCRIPT_TOOL:
+        fn = tool_input["function"]
+        if not isinstance(fn, str):
+            raise TypeError("function is not a string")
+        check_script(fn)
     elif tool in NAV_TOOLS:
         url = tool_input["url"]
         if not isinstance(url, str):

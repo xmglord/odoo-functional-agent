@@ -13,7 +13,7 @@
         ]
       },
       {
-        "matcher": "mcp__firefox-devtools__navigate_page|mcp__firefox-devtools__new_page",
+        "matcher": "mcp__firefox-devtools__navigate_page|mcp__firefox-devtools__new_page|mcp__firefox-devtools__evaluate_script",
         "hooks": [
           {
             "type": "command",
