@@ -32,8 +32,12 @@ def runs_root(plan_dir=None):
     return (Path(plan_dir) if plan_dir else Path.cwd()) / "runs"
 
 
-def run_dir_for(plan_dir, run_id, target, now=None):
-    """The dir for --run RUN_ID (must exist), or a new run dir."""
+def run_dir_for(plan_dir, run_id, target, now=None, *, clock=time.time, sleep=time.sleep):
+    """The dir for --run RUN_ID (must exist), or a new run dir.
+
+    Run ids have one-second resolution, so `ofa test` right after `ofa apply` on the same plan dir can
+    land on the apply's id; wait for the next second instead of changing the id format (C9).
+    """
     root = runs_root(plan_dir)
     if run_id:
         d = root / run_id
@@ -41,9 +45,17 @@ def run_dir_for(plan_dir, run_id, target, now=None):
             raise UsageError(f"run {run_id} not found under {root.name}/")
         return d
     root.mkdir(parents=True, exist_ok=True)
-    d = root / new_run_id(target, now)
-    d.mkdir()
-    return d
+    for _ in range(3):
+        t = clock() if now is None else now
+        d = root / new_run_id(target, t)
+        try:
+            d.mkdir()
+            return d
+        except FileExistsError:
+            if now is not None:
+                break
+            sleep(1.0 - t % 1.0 + 0.01)
+    raise UsageError(f"cannot allocate a run id under {root}")
 
 
 def write_json(path, data):

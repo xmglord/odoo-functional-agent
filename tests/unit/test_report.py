@@ -123,6 +123,18 @@ class ArtifactSafetyTest(TestCommandCase):
                 self.assertNotIn("/home/", text)
 
 
+class RunDirTest(unittest.TestCase):
+    def test_same_second_as_an_earlier_run_waits_for_the_next(self):
+        # Seen live: `ofa test` right after `ofa apply` hit the apply's run id and crashed.
+        plan_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, plan_dir)
+        t = [1_793_000_000.4]
+        (plan_dir / "runs" / report.new_run_id("t1", t[0])).mkdir(parents=True)
+        d = report.run_dir_for(plan_dir, None, "t1", clock=lambda: t[0],
+                               sleep=lambda s: t.__setitem__(0, t[0] + s))
+        self.assertEqual(d.name, report.new_run_id("t1", 1_793_000_001.0))
+
+
 class RenderTest(unittest.TestCase):
     def setUp(self):
         self.run = Path(tempfile.mkdtemp()) / "20261026T000000Z_t1"
