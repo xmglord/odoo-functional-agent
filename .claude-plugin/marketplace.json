@@ -1,0 +1,11 @@
+{
+  "name": "xmglord",
+  "owner": {"name": "xmglord"},
+  "plugins": [
+    {
+      "name": "odoo-functional-agent",
+      "source": ".",
+      "description": "Plan, apply and test Odoo 20 functional configuration on local demo databases."
+    }
+  ]
+}

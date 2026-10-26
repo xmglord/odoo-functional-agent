@@ -1,0 +1,8 @@
+.odoo/
+docs/plan/
+plans/
+runs/
+__pycache__/
+*.pyc
+.ofa/
+CLAUDE.md
