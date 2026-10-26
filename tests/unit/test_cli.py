@@ -72,7 +72,8 @@ class CliTest(unittest.TestCase):
             self.assertIn(cli.cli_name(name), help_out.stdout)
         # Commands become real one task at a time; only the ones still missing must be stubs.
         missing = [n for n in cli.COMMANDS if importlib.util.find_spec(f"ofa.commands.{n}") is None]
-        self.assertIn("lint_plan", missing)
+        # T18 made lint-plan real; it must still be listed exactly once.
+        self.assertEqual(help_out.stdout.count("lint-plan"), 1)
         for name in map(cli.cli_name, missing):
             r = subprocess.run([ofa, name], capture_output=True, text=True)
             self.assertEqual(r.returncode, 2)

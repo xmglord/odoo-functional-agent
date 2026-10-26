@@ -67,8 +67,17 @@ def rule_local_only_path(path, text):
     return path.startswith(PLAN_DIR) or path.startswith(".odoo/")
 
 
+SOURCE_INDEX_RE = re.compile(r'"format"\s*:\s*"ofa\.source_index/')
+SOURCE_INDEX_NAME = re.compile(r"(^|/)source_index_[0-9a-f]+\.json$")
+
+
+def rule_source_index(path, text):
+    """The source index is derived from Enterprise code: it lives in ~/.cache/ofa, never in the repo."""
+    return bool(SOURCE_INDEX_NAME.search(path) or SOURCE_INDEX_RE.search(text))
+
+
 RULES = (rule_company, rule_proprietary_license, rule_key_content, rule_rfc,
-         rule_md_links_plan, rule_example_leak, rule_local_only_path)
+         rule_md_links_plan, rule_example_leak, rule_local_only_path, rule_source_index)
 
 
 def _load_keys():
@@ -128,6 +137,11 @@ class RuleTest(unittest.TestCase):
         self.assertTrue(rule_proprietary_license("m.py", "# License: " + "OEEL" + "-1"))
         self.assertTrue(rule_proprietary_license("m.py", "Odoo Proprietary" + " License v1.0"))
         self.assertFalse(rule_proprietary_license("m.py", "License: MIT"))
+
+    def test_source_index(self):
+        self.assertTrue(rule_source_index("x/source_index_d1ac0caa9554bf1d.json", "{}"))
+        self.assertTrue(rule_source_index("cache.json", '{"format": "ofa.source_index/1", "models": {}}'))
+        self.assertFalse(rule_source_index("src/ofa/source_index.py", 'FORMAT = "ofa.source_index/1"'))
 
     def test_key_content(self):
         self.assertTrue(rule_key_content("x.json", 'key "abc123secret"', keys=("abc123secret",)))

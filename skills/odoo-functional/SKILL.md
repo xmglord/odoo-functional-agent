@@ -92,7 +92,20 @@ These hold in every phase.
 4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
    the literal `[op_id]`, each in its own brackets.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
-6. Plan lint gate: none installed. Do not run `ofa lint-plan`.
+6. Plan lint gate: run `ofa lint-plan plans/<slug> --target <slug>` and fix the plan until it exits 0. It checks
+   every module, model, field, settings key, method, xmlid and selection value in plan.json, and every technical
+   name in backticks in plan.md, against the target and the 20.0 source, so names remembered from older Odoo
+   versions are caught before the review stop. For each line:
+   - `NOT_IN_20`: the name does not exist in 20.0. Find the 20.0 name (`ofa inspect`, the knowledge entries) and
+     correct plan.json or plan.md. If plan.md names it on purpose to say it no longer exists, list it in a comment
+     `<!-- ofa-lint-ignore: name1, name2 -->` in plan.md.
+   - `NEEDS_MODULE`: only a module the plan does not install defines it. In plan.json, install that module or drop
+     the name. In plan.md it is a warning: keep it only if the text presents it as not installed (an alternative
+     you rejected), and say so.
+   - `BAD_SELECTION`, `UNRESOLVED_REF`, `EDITION`: fix the value, the reference or the edition.
+   Never weaken the plan to silence the linter, and re-run `ofa validate` after every fix. The summary line
+   counts the plan.md names it could not check (bare names without an underscore, paths, names outside
+   backticks); write technical names in backticks with their model (`sale.order.state`) so they get checked.
 
 ## Phase 4: Review stop
 
