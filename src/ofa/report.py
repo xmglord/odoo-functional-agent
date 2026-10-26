@@ -120,6 +120,12 @@ def render(run_dir, plan_dir=None):
                          f"{_cell(op.get('model'))} | {_cell(ids)} | {_cell(op.get('error'))} |")
         if any(op.get("pre_state") for op in ops):
             lines += ["", "Ops marked pre-state already held on the fresh database, so they prove nothing about the plan."]
+        synced = [g for g in (apply or {}).get("bot_groups") or [] if g.get("added") or g.get("error")]
+        if synced:
+            lines += ["", "Groups given to the ofa_bot user so it has the admin's (C13):", ""]
+            for g in synced:
+                what = f"error: {g['error']}" if g.get("error") else ", ".join(f"`{x}`" for x in g["added"])
+                lines.append(f"- {_cell(g.get('at'))}: {_cell(what)}")
     else:
         lines.append("No apply in this run.")
     lines.append("")

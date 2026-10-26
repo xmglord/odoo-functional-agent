@@ -154,6 +154,16 @@ class RenderTest(unittest.TestCase):
         self.assertIn("- sc_a / lines: [records](records.json)", md)
         self.assertNotIn(str(self.run.parent), md)
 
+    def test_bot_group_syncs_are_listed(self):
+        op = {"op_id": "op_010", "type": "install_modules", "status": "created", "model": "ir.module.module",
+              "res_ids": [3], "pre_state": False, "error": None, "duration_ms": 1}
+        report.write_json(self.run / "apply.json", {"run_id": self.run.name, "target": "t1", "ops": [op], "bot_groups": [
+            {"at": "start", "added": [], "error": None},
+            {"at": "op_010", "added": ["project.group_project_manager", "project.group_project_user"], "error": None}]})
+        md = report.render(self.run)
+        self.assertIn("- op_010: `project.group_project_manager`, `project.group_project_user`", md)
+        self.assertNotIn("- start:", md)
+
     def test_plan_title_from_plan_dir(self):
         plan_dir = self.run.parent
         (plan_dir / "plan.json").write_text(json.dumps({"title": "My plan"}))

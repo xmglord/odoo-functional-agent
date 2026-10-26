@@ -12,6 +12,9 @@ from ofa.errors import OdooError, OfaError, ValidationError
 MODULE_MODEL = "ir.module.module"
 SETTINGS_MODEL = "res.config.settings"
 COMPANY_MODEL = "res.company"
+USERS_MODEL = "res.users"
+GROUPS_MODEL = "res.groups"
+ADMIN_REF = {"$ref": "base.user_admin"}
 DB_UUID_KEY = "database.uuid"
 
 _TRACEBACK = "Traceback (most recent call last)"
@@ -108,9 +111,39 @@ def _set_settings(client, op, ctx):
     return "updated", [sid]
 
 
+def _group_xmlids(client, group_ids):
+    rows = client.call("ir.model.data", "search_read",
+                       domain=[["model", "=", GROUPS_MODEL], ["res_id", "in", group_ids]],
+                       fields=["module", "name", "res_id"])
+    names = {r["res_id"]: f"{r['module']}.{r['name']}" for r in rows}
+    return [names.get(g, f"{GROUPS_MODEL},{g}") for g in group_ids]
+
+
+def sync_bot_groups(client):
+    """Add to ofa_bot every group the admin has and the bot lacks; never remove one (C13).
+
+    Provisioning copies the admin's groups once, but a module installed later (by a
+    plan, the UI or another plan) gives its groups to the admin only, and the bot then
+    gets AccessError on that module's models. Returns the xmlids added ([] when in sync).
+    """
+    admin = refs.resolve(client, ADMIN_REF, {})
+    bot = client.bot_uid()
+    fields = ["group_ids", "all_group_ids"]
+    rows = {r["id"]: r for r in client.call(USERS_MODEL, "read", ids=[admin, bot], fields=fields)}
+    missing = sorted(set(rows[admin]["group_ids"]) - set(rows[bot]["all_group_ids"]))
+    if not missing:
+        return []
+    client.call(USERS_MODEL, "write", ids=[bot], vals={"group_ids": [[4, g] for g in missing]})
+    held = client.call(USERS_MODEL, "read", ids=[bot], fields=["all_group_ids"])[0]["all_group_ids"]
+    lost = sorted(set(missing) - set(held))
+    if lost:
+        raise ValidationError("VALUE_NOT_HELD", f"ofa_bot groups {', '.join(_group_xmlids(client, lost))} did not hold")
+    return _group_xmlids(client, missing)
+
+
 def _grant_company(client, company_id):
     # S2 F3: the bot must be a member of every company the plan creates.
-    client.call("res.users", "write", ids=[client.bot_uid()], vals={"company_ids": [[4, company_id]]})
+    client.call(USERS_MODEL, "write", ids=[client.bot_uid()], vals={"company_ids": [[4, company_id]]})
 
 
 def _upsert_record(client, op, ctx):
@@ -259,6 +292,12 @@ def run(client, plan, plan_dir, sha256, *, clock=time.time, sleep=time.sleep):
     results = []
     failed = False
     state = RunState()
+    bot_groups = [{"at": "start", "added": [], "error": None}]
+    try:
+        bot_groups[0]["added"] = sync_bot_groups(client)
+    except Exception as e:  # noqa: BLE001 - without the bot's groups no op can be trusted to run
+        bot_groups[0]["error"] = safe_error(e)
+        failed = True
     for op in planmod.order(plan):
         handler, model_of = HANDLERS[op["type"]]
         rec = {"op_id": op["id"], "type": op["type"], "status": "skipped", "model": model_of(op),
@@ -269,6 +308,14 @@ def run(client, plan, plan_dir, sha256, *, clock=time.time, sleep=time.sleep):
         t0 = time.monotonic()
         try:
             status, res_ids = handler(client, op, _context(client, op))
+            if op["type"] == "install_modules":
+                sync = {"at": op["id"], "added": [], "error": None}
+                bot_groups.append(sync)
+                try:
+                    sync["added"] = sync_bot_groups(client)
+                except Exception as e:  # noqa: BLE001
+                    sync["error"] = safe_error(e)
+                    raise
             dependent = state.record(op, status)
             # S2 F1: flag only state that held before this plan; not what an earlier op of this run made.
             rec.update(status=status, res_ids=list(res_ids),
@@ -280,7 +327,7 @@ def run(client, plan, plan_dir, sha256, *, clock=time.time, sleep=time.sleep):
     record = {
         "run_id": run_id, "plan_sha256": sha256, "target": target.name, "db": target.db,
         "db_uuid": db_uuid, "odoo_version": target.odoo_version, "edition": target.edition,
-        "started_at": _iso(started), "finished_at": _iso(clock()), "ops": results,
+        "started_at": _iso(started), "finished_at": _iso(clock()), "bot_groups": bot_groups, "ops": results,
     }
     tmp = run_dir / ".apply.json.tmp"
     tmp.write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -289,4 +336,5 @@ def run(client, plan, plan_dir, sha256, *, clock=time.time, sleep=time.sleep):
 
 
 def has_failure(record):
-    return any(op["status"] == "failed" for op in record["ops"])
+    return (any(op["status"] == "failed" for op in record["ops"])
+            or any(s.get("error") for s in record.get("bot_groups", [])))

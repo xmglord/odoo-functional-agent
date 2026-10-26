@@ -15,6 +15,8 @@ from tests.unit.test_client import MARKER, TRACE, FakeCase
 
 SMOKE = ROOT / "tests" / "fixtures" / "plans" / "smoke"
 BOT_UID = 7
+ADMIN_UID = 2
+GROUP_USER, GROUP_SYSTEM, GROUP_SALE = 10, 11, 12
 DB_UUID = "0b7e6f6a-0000-4000-8000-00000000d00d"
 MANY2ONE = {"country_id", "currency_id", "parent_id"}
 
@@ -46,14 +48,25 @@ class Sim:
                 1: {"module": "base", "name": "main_company", "model": "res.company", "res_id": 1},
                 2: {"module": "base", "name": "mx", "model": "res.country", "res_id": 156},
                 3: {"module": "base", "name": "MXN", "model": "res.currency", "res_id": 33},
+                4: {"module": "base", "name": "user_admin", "model": "res.users", "res_id": ADMIN_UID},
+                5: {"module": "base", "name": "group_user", "model": "res.groups", "res_id": GROUP_USER},
+                6: {"module": "base", "name": "group_system", "model": "res.groups", "res_id": GROUP_SYSTEM},
+                7: {"module": "sales_team", "name": "group_sale_manager", "model": "res.groups", "res_id": GROUP_SALE},
             },
             "ir.module.module": {50: {"name": "sale_management", "state": "installed" if sale_installed else "uninstalled"}},
             "res.partner.category": {},
             "res.company": {1: {"name": "Main", "country_id": 233, "currency_id": 1, "chart_template": "generic_coa"}},
-            "res.users": {BOT_UID: {"login": "ofa_bot", "company_ids": [1]}},
+            "res.users": {ADMIN_UID: {"login": "admin", "group_ids": [GROUP_USER, GROUP_SYSTEM]},
+                          BOT_UID: {"login": "ofa_bot", "company_ids": [1], "group_ids": [GROUP_USER, GROUP_SYSTEM]}},
             "res.config.settings": {},
         }
+        # group -> groups it implies (Odoo's all_group_ids is group_ids plus these)
+        self.implied = {GROUP_SYSTEM: {GROUP_USER}, GROUP_SALE: {GROUP_USER}}
         self.calls = []
+
+    def _all_groups(self, uid):
+        direct = set(self.tables["res.users"][uid].get("group_ids") or [])
+        return sorted(direct.union(*(self.implied.get(g, set()) for g in direct)))
 
     def _new(self, model, vals):
         self.next_id += 1
@@ -95,7 +108,11 @@ class Sim:
         if method == "search_count":
             return len([i for i, r in table.items() if _match({"id": i, **r}, p["domain"])])
         if method == "read":
-            return [{"id": i, **{f: self._out(f, table[i].get(f)) for f in p["fields"]}} for i in req.ids if i in table]
+            def value(i, f):
+                if (model, f) == ("res.users", "all_group_ids"):
+                    return self._all_groups(i)
+                return self._out(f, table[i].get(f))
+            return [{"id": i, **{f: value(i, f) for f in p["fields"]}} for i in req.ids if i in table]
         if method == "write":
             for i in req.ids:
                 self._apply_vals(table[i], p["vals"])
@@ -105,6 +122,10 @@ class Sim:
         if (model, method) == ("ir.module.module", "button_immediate_install"):
             for i in req.ids:
                 table[i]["state"] = "installed"
+                if table[i]["name"] == "sale_management":
+                    # The module's data gives its groups to the admin user only.
+                    admin = self.tables["res.users"][ADMIN_UID]
+                    admin["group_ids"] = sorted(set(admin["group_ids"]) | {GROUP_SALE})
             return {"type": "ir.actions.client", "tag": "reload"}
         if (model, method) == ("res.config.settings", "execute"):
             for i in req.ids:
@@ -203,11 +224,12 @@ class ExecutorTest(ExecutorCase):
         self.apply()
         company_id = max(sim.tables["res.company"])
         self.assertIn(company_id, sim.tables["res.users"][BOT_UID]["company_ids"])
-        grant = [c for c in sim.calls if c[:2] == ("res.users", "write")]
-        self.assertEqual(grant, [("res.users", "write", [BOT_UID], {"vals": {"company_ids": [[4, company_id]]}}, None)])
+        def grants():
+            return [c for c in sim.calls if c[:2] == ("res.users", "write") and "company_ids" in c[3]["vals"]]
+        self.assertEqual(grants(), [("res.users", "write", [BOT_UID], {"vals": {"company_ids": [[4, company_id]]}}, None)])
         # A re-apply does not grant again.
         self.apply()
-        self.assertEqual(len([c for c in sim.calls if c[:2] == ("res.users", "write")]), 1)
+        self.assertEqual(len(grants()), 1)
 
     def test_pre_state_on_first_apply_only(self):
         self.sim(sale_installed=True, discounts=True, auto_chart=True)
@@ -386,6 +408,86 @@ class ExecutorTest(ExecutorCase):
         a = executor.run(self.open(), self.plan, self.plan_dir, "x", clock=self.clock, sleep=self.clock.sleep)
         b = executor.run(self.open(), self.plan, self.plan_dir, "x", clock=self.clock, sleep=self.clock.sleep)
         self.assertNotEqual(a["run_id"], b["run_id"])
+
+
+class BotGroupsTest(ExecutorCase):
+    def group_writes(self, sim):
+        return [c for c in sim.calls if c[:2] == ("res.users", "write") and "group_ids" in c[3]["vals"]]
+
+    def test_groups_a_module_gives_the_admin_reach_the_bot(self):
+        sim = self.sim()
+        rec = self.apply()
+        self.assertEqual(rec["bot_groups"], [
+            {"at": "start", "added": [], "error": None},
+            {"at": "op_010_install_sales", "added": ["sales_team.group_sale_manager"], "error": None}])
+        self.assertIn(GROUP_SALE, sim.tables["res.users"][BOT_UID]["group_ids"])
+        self.assertEqual(self.group_writes(sim),
+                         [("res.users", "write", [BOT_UID], {"vals": {"group_ids": [[4, GROUP_SALE]]}}, None)])
+        # The sync runs after the install, before the ops that need the module's groups.
+        order = [c[:2] for c in sim.calls]
+        self.assertLess(order.index(("ir.module.module", "button_immediate_install")),
+                        order.index(("res.users", "write")))
+        self.assertLess(order.index(("res.users", "write")), order.index(("res.config.settings", "create")))
+
+    def test_sync_is_idempotent(self):
+        sim = self.sim()
+        self.apply()
+        second = self.apply()
+        self.assertEqual(second["bot_groups"], [
+            {"at": "start", "added": [], "error": None},
+            {"at": "op_010_install_sales", "added": [], "error": None}])
+        self.assertEqual(len(self.group_writes(sim)), 1)
+        self.assertEqual(set(self.statuses(second).values()), {"unchanged"})
+
+    def test_start_sync_covers_modules_installed_another_way(self):
+        # The module was installed from the UI before this plan ran: op_010 is unchanged,
+        # and only the start sync can bring the bot up to the admin.
+        sim = self.sim(sale_installed=True)
+        sim.tables["res.users"][ADMIN_UID]["group_ids"].append(GROUP_SALE)
+        rec = self.apply()
+        self.assertEqual(rec["bot_groups"][0], {"at": "start", "added": ["sales_team.group_sale_manager"], "error": None})
+        self.assertEqual(rec["bot_groups"][1]["added"], [])
+        self.assertEqual(self.statuses(rec)["op_010_install_sales"], "unchanged")
+
+    def test_sync_never_removes_and_skips_implied_groups(self):
+        sim = self.sim()
+        bot = sim.tables["res.users"][BOT_UID]
+        bot["group_ids"] = [GROUP_SYSTEM, 99]       # base.group_user only implied; 99 the admin lacks
+        sim.tables["res.users"][ADMIN_UID]["group_ids"] = [GROUP_USER, GROUP_SYSTEM]
+        rec = self.apply()
+        self.assertEqual(rec["bot_groups"][0]["added"], [])
+        self.assertIn(99, bot["group_ids"])
+        for call in self.group_writes(sim):
+            self.assertTrue(all(cmd[0] == 4 for cmd in call[3]["vals"]["group_ids"]))
+
+    def test_group_without_xmlid_is_named_by_id(self):
+        sim = self.sim(sale_installed=True)
+        sim.tables["res.users"][ADMIN_UID]["group_ids"].append(55)
+        rec = self.apply()
+        self.assertEqual(rec["bot_groups"][0]["added"], ["res.groups,55"])
+
+    def test_group_that_does_not_hold_fails_the_install_op(self):
+        sim = self.sim()
+        apply_vals = sim._apply_vals
+        sim._apply_vals = lambda row, vals: apply_vals(row, {k: v for k, v in vals.items() if k != "group_ids"})
+        rec = self.apply()
+        op = rec["ops"][0]
+        self.assertEqual(op["status"], "failed")
+        self.assertEqual(op["error"], "VALUE_NOT_HELD: ofa_bot groups sales_team.group_sale_manager did not hold")
+        self.assertEqual(rec["bot_groups"][1]["error"], op["error"])
+        self.assertEqual({o["status"] for o in rec["ops"][1:]}, {"skipped"})
+
+    def test_failed_start_sync_skips_every_op(self):
+        sim = self.sim()
+        self.fake.script("res.users", "read", Response(500, error_body(
+            "odoo.exceptions.AccessError", "You are not allowed to access 'User' (res.users) records.")))
+        rec = self.apply()
+        self.assertEqual(rec["bot_groups"], [{"at": "start", "added": [],
+                                              "error": "odoo.exceptions.AccessError: You are not allowed to access "
+                                                       "'User' (res.users) records."}])
+        self.assertEqual(set(self.statuses(rec).values()), {"skipped"})
+        self.assertTrue(executor.has_failure(rec))
+        self.assertFalse(any(c[0] == "ir.module.module" for c in sim.calls))
 
 
 class SafeErrorTest(unittest.TestCase):

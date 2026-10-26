@@ -22,6 +22,10 @@ def handler(args):
         planmod.raise_problems(problems, sys.stderr)
     record = executor.run(c, plan, args.plan_dir, sha)
     print(record["run_id"])
+    for sync in record["bot_groups"]:
+        if sync["added"] or sync["error"]:
+            what = f"error: {sync['error']}" if sync["error"] else "added " + ", ".join(sync["added"])
+            print(f"  bot groups ({sync['at']}): {what}", file=sys.stderr)
     from_run = executor.produced_in_run(plan, record)
     for op in record["ops"]:
         line = f"  {op['op_id']}: {op['status']}"

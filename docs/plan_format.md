@@ -115,6 +115,20 @@ it with `{"$ref": "__ofa__.<key>"}`.
 When the created record is a `res.company`, `ofa` also adds it to its own bot user's companies, so later
 operations can read and write in it.
 
+### The bot user's groups
+
+`ofa` writes as its own user, `ofa_bot`, which provisioning creates with the admin user's groups. A module
+installed later gives its groups (Project manager, Employees officer, ...) to the admin only, and the bot would
+then get `AccessError` on that module's models. So `ofa apply` brings the bot up to the admin twice:
+
+- at the start of every apply, which also covers modules installed some other way (the UI, another plan);
+- right after every `install_modules` operation, before the operations that use the new module.
+
+Each sync adds every group in the admin's `group_ids` that is not in the bot's `all_group_ids` (groups plus
+implied groups). It never removes a group and gives the bot nothing the admin does not have. When the bot is
+already in sync it writes nothing, so re-applies stay quiet. A failed start sync skips every operation; a
+failed sync after `install_modules` fails that operation.
+
 ### `call_method`
 
 ```json
@@ -192,4 +206,14 @@ Each operation record is:
 
 `error` is `"<name>: <message>"` from the error alone: never a server traceback, never a filesystem path.
 The file's top level holds `run_id` (`YYYYmmddTHHMMSSZ_<target>`), `plan_sha256`, `target`, `db`,
-`db_uuid`, `odoo_version`, `edition`, `started_at`, `finished_at` and `ops`.
+`db_uuid`, `odoo_version`, `edition`, `started_at`, `finished_at`, `bot_groups` and `ops`.
+
+`bot_groups` lists every sync of the bot's groups, in order:
+
+```json
+[{"at": "start", "added": [], "error": null},
+ {"at": "op_010_install_project", "added": ["project.group_project_manager"], "error": null}]
+```
+
+`added` holds the xmlids of the groups added (`res.groups,<id>` for a group without one). The run fails
+when any sync has an `error`.

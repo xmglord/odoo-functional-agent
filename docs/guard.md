@@ -16,7 +16,8 @@ can skip these checks:
   checked on every client construction, for reads as well as writes. Reading a config parameter over JSON-2
   (`ir.config_parameter/get_str`) needs the `base.group_system` group. The `ofa_bot` user has it because
   provisioning copies the admin user's `group_ids` to it; this was confirmed live (`has_group('base.group_system')`
-  is true for the bot). A missing marker reads back as an empty string, not null; the client treats both as
+  is true for the bot). `ofa apply` later adds any group the admin gained from a newly installed module, and never
+  more than the admin has (see `docs/plan_format.md`). A missing marker reads back as an empty string, not null; the client treats both as
   `MARKER_MISSING`. When the registered key is rejected while reading the marker (401/403), the marker cannot be
   verified and the client refuses with `MARKER_UNVERIFIABLE` (exit 3), not as an environment error.
 
