@@ -10,6 +10,10 @@ decision may cover several ops. Rules:
 - Use exact technical names (module, model, field, settings field, group, xmlid) next to the business terms.
 - Sources are compendium entries (`knowledge/20.0/<area>/<topic>.md`). When none covers a decision, write
   "Uncited: no compendium entry" and name the `ofa inspect` check that confirmed the technical names.
+- "Test plan" lists every need of the requirement, as the requirement numbers or states it, with the scenario
+  and the check that will prove it. A need no scenario will prove is still listed, marked **Not tested**, with the
+  reason. The reviewer approves the plan knowing what will and will not be tested.
+  Write scenario ids without backticks: the scenarios do not exist yet, so `ofa lint-plan` cannot check them.
 
 ```markdown
 # <Plan title, same as plan.json "title">
@@ -38,6 +42,14 @@ Two to four sentences: what the business needs and the shape of the configuratio
 
 ## Decision 2: <short name>
 ...
+
+## Test plan
+Scenarios to write after the apply. Every need of the requirement gets a row.
+
+| Need (from requirement.md) | Scenario | What it checks |
+|---|---|---|
+| 1. <need, short> | <scenario_id> | the fields it reads back and the values it expects |
+| 2. <need, short> | **Not tested** | why no scenario proves it (UI-only, needs development, outside the plan, ...) |
 
 ## Not covered by this plan
 Configuration the requirement needs that `ofa` cannot apply (UI-only steps, with menu paths), and anything

@@ -90,7 +90,9 @@ These hold in every phase.
    - `call_method` needs `skip_if`, so a re-apply reports `unchanged`
    - no `$create` in plan values
 4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
-   the literal `[op_id]`, each in its own brackets.
+   the literal `[op_id]`, each in its own brackets. Its "Test plan" lists every need of the requirement with the
+   scenario you will write for it and what that scenario checks (fields read back, expected values). Mark a need
+   no scenario will prove as **Not tested**, with the reason; do not leave a need out.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
 6. Plan lint: run `ofa lint-plan plans/<slug> --target <slug>`. It checks every module, model, field, settings
    key, method, xmlid and selection value in plan.json, and every technical name in backticks in plan.md, against
@@ -112,7 +114,8 @@ These hold in every phase.
 
 ## Phase 4: Review stop
 
-Show the user the full plan.md, the list of operations (id, type, one line each), the plan directory path and a
+Show the user the full plan.md (including its "Test plan", so the user approves knowing which needs will and will
+not be tested), the list of operations (id, type, one line each), the plan directory path and a
 section **"Names to review"**: every plan.md warning of the last `ofa lint-plan` run, one per line with its plan.md
 line number, the name and the linter's reason (or "none" when there are no warnings). Then stop and wait for an
 explicit approval message from the user, such as "approved" or "yes, apply it". A question, a comment, silence, or
@@ -141,13 +144,16 @@ When apply does not exit 0:
 
 ## Phase 6: Test
 
-1. Pick the library scenarios in `${CLAUDE_PLUGIN_ROOT}/scenarios/20.0/<area>/` that cover the requirement.
-2. Write requirement-specific scenarios (format `ofa.scenario/1`, see `docs/scenario_format.md`) into
-   `plans/<slug>/scenarios/`. Check identifiers they use (partners, products, xmlids) with `ofa inspect`.
-   Assertions read fields back; they never call helper methods. A scenario only exercises the configuration: it
-   must not change settings to make itself pass. When the plan works in a company other than the main one, set
-   the scenario's top-level `company` to it: without it, reads and company-dependent values (a customer's
-   `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s companies in a scenario.
+1. Follow the approved "Test plan" in plan.md. Pick the library scenarios in
+   `${CLAUDE_PLUGIN_ROOT}/scenarios/20.0/<area>/` that cover its rows.
+2. Write requirement-specific scenarios, one per Test plan row or group of rows, with the checks the row names
+   (format `ofa.scenario/1`, see `docs/scenario_format.md`), into `plans/<slug>/scenarios/`. A check that turns out
+   impossible or different from the Test plan is a difference to report in Phase 8. Check identifiers they use
+   (partners, products, xmlids) with `ofa inspect`. Assertions read fields back; they never call helper methods. A
+   scenario only exercises the configuration: it must not change settings to make itself pass. When the plan works in
+   a company other than the main one, set the scenario's top-level `company` to it: without it, reads and
+   company-dependent values (a customer's `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s
+   companies in a scenario.
 3. Run them into the same run:
    `ofa test --plan-dir plans/<slug> --run <run_id> --target <slug> <scenario.json> ...`
    Exit 0 means all pass, 1 means an assertion failed, 4 means a scenario errored (its preconditions failed or the
@@ -165,7 +171,10 @@ Tell the user, in this order:
 1. Plan title, the approval message you received (quoted) and the run id.
 2. Operations: counts per status, and any op with `"pre_state": true` called out as proving nothing (it already
    held in the template).
-3. Scenarios: pass/fail per scenario, with the failing step and message for any fail or error.
+3. Scenarios: the Test plan table again, with a result column (pass, fail with the failing step and message,
+   or Not tested) for every need. Then list every difference from the approved Test plan: a check dropped or
+   weakened, a scenario added or split, a need that moved to Not tested, and why. "No differences" when there
+   are none.
 4. A link to `plans/<slug>/runs/<run_id>/report.md` (it links `records.json` and the screenshots).
 5. Anything that needs UI-only configuration, and every uncited decision.
 6. **What you learned**: a short summary of the functional decisions and why each was made, in business terms,
