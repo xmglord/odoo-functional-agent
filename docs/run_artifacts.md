@@ -21,10 +21,13 @@ ofa test [--plan-dir D] [--run RUN_ID] --target N SCENARIO.json...
 | `records.json` | `ofa test` | `{scenario id: {evidence label: [rows]}}`; a read-back that failed is `{"error": message}` |
 | `screenshot_targets.json` | `ofa test` | `[{"scenario", "label", "model", "id", "url"}]` with `url` = `<server url>/odoo/<model>/<id>` |
 | `calls.jsonl` | `ofa test` | one JSON object per Odoo call: `ts`, `model`, `method`, `ids`, `duration_ms`, `status`; appended, so lines already in the run dir are kept |
+| `test_history.jsonl` | `ofa test` | one line per `ofa test` invocation into this run: `{"at", "scenarios"}` with the same scenario results as `test.json`; appended |
 | `report.md` | `ofa test` | human summary, regenerated from the files above |
 | `screenshots/<scenario>_<label>.png` | the skill | screenshots of the `screenshot_targets.json` entries, best effort |
 
-`test.json`, `records.json` and `screenshot_targets.json` are rewritten on each `ofa test` into the same run.
+`test.json`, `records.json` and `screenshot_targets.json` are rewritten on each `ofa test` into the same run, so they
+hold the latest invocation. `test_history.jsonl` keeps every invocation, and `report.md` lists the earlier ones with
+their failing steps, so a fail fixed by a later rerun stays on record.
 
 `report.md` holds the plan title and hash, a table of operations (with `pre-state` marked on operations that already
 held on the fresh database), a table of scenarios with the failing step and its message, and links to

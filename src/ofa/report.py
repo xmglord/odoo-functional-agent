@@ -1,5 +1,5 @@
 """Run artifacts (C9): writers for test.json, records.json, screenshot_targets.json,
-calls.jsonl, and the human summary report.md.
+calls.jsonl, test_history.jsonl, and the human summary report.md.
 
 Every link in report.md is relative to the run dir, so a run dir can be copied
 (e.g. into examples/) and still render.
@@ -19,6 +19,7 @@ APPLY_JSON = "apply.json"
 RECORDS_JSON = "records.json"
 SHOTS_JSON = "screenshot_targets.json"
 CALLS_JSONL = "calls.jsonl"
+TEST_HISTORY = "test_history.jsonl"
 REPORT_MD = "report.md"
 SCREENSHOTS = "screenshots"
 CALL_LOG_KEYS = ("ts", "model", "method", "ids", "duration_ms", "status")
@@ -76,6 +77,31 @@ def append_calls(run_dir, call_log):
     with open(Path(run_dir) / CALLS_JSONL, "a", encoding="utf-8") as f:
         for entry in call_log:
             f.write(json.dumps({k: entry.get(k) for k in CALL_LOG_KEYS}, sort_keys=True) + "\n")
+
+
+def append_test_history(run_dir, results, now=None):
+    """One line per `ofa test` invocation, so a later run into the same dir keeps the earlier results."""
+    entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)), "scenarios": results}
+    with open(Path(run_dir) / TEST_HISTORY, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, sort_keys=True, ensure_ascii=False) + "\n")
+
+
+def _history(run_dir):
+    try:
+        lines = (Path(run_dir) / TEST_HISTORY).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out
+
+
+def _failing_step(sc):
+    return next((s for s in sc.get("steps", []) if s.get("status") in ("fail", "error")), None)
 
 
 def _load(path):
@@ -147,12 +173,24 @@ def render(run_dir, plan_dir=None):
     if scenarios:
         lines += ["| Scenario | Status | Failing step | Message |", "|---|---|---|---|"]
         for sc in scenarios:
-            bad = next((s for s in sc.get("steps", []) if s.get("status") in ("fail", "error")), None)
+            bad = _failing_step(sc)
             lines.append(f"| {_cell(sc.get('id'))} | {_cell(sc.get('status'))} | "
                          f"{_cell(bad and bad.get('id'))} | {_cell(bad and bad.get('message'))} |")
     else:
         lines.append("No scenarios in this run.")
     lines.append("")
+
+    earlier = _history(run_dir)[:-1] if test else []
+    if earlier:
+        lines += [f"Earlier `ofa test` invocations in this run: {len(earlier)} (all results in "
+                  f"[{TEST_HISTORY}]({TEST_HISTORY})).", ""]
+        lines += ["| Invoked at | Scenario | Status | Failing step | Message |", "|---|---|---|---|---|"]
+        for inv in earlier:
+            for sc in inv.get("scenarios") or []:
+                bad = _failing_step(sc)
+                lines.append(f"| {_cell(inv.get('at'))} | {_cell(sc.get('id'))} | {_cell(sc.get('status'))} | "
+                             f"{_cell(bad and bad.get('id'))} | {_cell(bad and bad.get('message'))} |")
+        lines.append("")
 
     lines += ["## Evidence", ""]
     shot_labels = {(s.get("scenario"), s.get("label")) for s in shots}
@@ -185,5 +223,6 @@ def write_test_run(run_dir, run_id, target, results, records, shots, call_log, p
     write_json(run_dir / TEST_JSON, {"run_id": run_id, "target": target, "scenarios": results})
     write_json(run_dir / RECORDS_JSON, records)
     write_json(run_dir / SHOTS_JSON, shots)
+    append_test_history(run_dir, results)
     append_calls(run_dir, call_log)
     return write_report(run_dir, plan_dir)

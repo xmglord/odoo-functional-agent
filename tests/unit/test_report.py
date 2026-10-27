@@ -97,6 +97,28 @@ class ExitCodeTest(TestCommandCase):
         self.assertEqual(self.ofa_test(PASS_FILE, run="nope"), 2)
 
 
+class TestHistoryTest(TestCommandCase):
+    def test_rerun_into_the_same_run_keeps_earlier_results(self):
+        # T21: a rerun after a fix rewrote test.json, and the earlier fails survived only in the transcript.
+        script_sales(self.fake)
+        run = self.plan_dir / "runs" / "20261026T000000Z_t1"
+        run.mkdir(parents=True)
+        self.assertEqual(self.ofa_test(FAIL_FILE, run=run.name), 1)
+        self.assertEqual(self.ofa_test(PASS_FILE, run=run.name), 0)
+        history = [json.loads(l) for l in (run / "test_history.jsonl").read_text().splitlines()]
+        self.assertEqual([[sc["status"] for sc in h["scenarios"]] for h in history], [["fail"], ["pass"]])
+        self.assertEqual([sc["id"] for sc in json.loads((run / "test.json").read_text())["scenarios"]],
+                         ["quote_confirm_pass"])
+        md = (run / "report.md").read_text()
+        self.assertIn("Earlier `ofa test` invocations in this run: 1", md)
+        self.assertIn("| quote_confirm_fail | fail | s050 |", md)
+
+    def test_single_invocation_has_no_earlier_section(self):
+        script_sales(self.fake)
+        self.ofa_test(PASS_FILE)
+        self.assertNotIn("Earlier `ofa test`", self.read("report.md"))
+
+
 class ArtifactSafetyTest(TestCommandCase):
     def test_calls_jsonl_has_no_key(self):
         script_sales(self.fake)
