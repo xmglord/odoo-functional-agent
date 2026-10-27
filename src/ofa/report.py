@@ -218,11 +218,20 @@ def write_report(run_dir, plan_dir=None):
 
 
 def write_test_run(run_dir, run_id, target, results, records, shots, call_log, plan_dir=None):
-    """Write every artifact `ofa test` owns into run_dir and regenerate report.md."""
+    """Write every artifact `ofa test` owns into run_dir and regenerate report.md.
+
+    A run accumulates per scenario: an earlier invocation's scenarios stay in test.json, records.json and
+    screenshot_targets.json unless this invocation ran them again, in which case the latest one wins (T24).
+    """
     run_dir = Path(run_dir)
-    write_json(run_dir / TEST_JSON, {"run_id": run_id, "target": target, "scenarios": results})
-    write_json(run_dir / RECORDS_JSON, records)
-    write_json(run_dir / SHOTS_JSON, shots)
+    earlier = _load(run_dir / TEST_JSON) or {}
+    rerun = {sc["id"] for sc in results}
+    kept_results = [sc for sc in earlier.get("scenarios") or [] if sc.get("id") not in rerun]
+    write_json(run_dir / TEST_JSON, {"run_id": run_id, "target": target, "scenarios": kept_results + list(results)})
+    kept_records = {sc: ev for sc, ev in (_load(run_dir / RECORDS_JSON) or {}).items() if sc not in rerun}
+    write_json(run_dir / RECORDS_JSON, {**kept_records, **records})
+    kept_shots = [s for s in _load(run_dir / SHOTS_JSON) or [] if s.get("scenario") not in rerun]
+    write_json(run_dir / SHOTS_JSON, kept_shots + list(shots))
     append_test_history(run_dir, results)
     append_calls(run_dir, call_log)
     return write_report(run_dir, plan_dir)

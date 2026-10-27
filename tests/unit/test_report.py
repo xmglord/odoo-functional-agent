@@ -107,11 +107,42 @@ class TestHistoryTest(TestCommandCase):
         self.assertEqual(self.ofa_test(PASS_FILE, run=run.name), 0)
         history = [json.loads(l) for l in (run / "test_history.jsonl").read_text().splitlines()]
         self.assertEqual([[sc["status"] for sc in h["scenarios"]] for h in history], [["fail"], ["pass"]])
-        self.assertEqual([sc["id"] for sc in json.loads((run / "test.json").read_text())["scenarios"]],
-                         ["quote_confirm_pass"])
         md = (run / "report.md").read_text()
         self.assertIn("Earlier `ofa test` invocations in this run: 1", md)
         self.assertIn("| quote_confirm_fail | fail | s050 |", md)
+
+    def test_rerun_into_the_same_run_accumulates_per_scenario(self):
+        # T24: a one-scenario recheck into the run dropped the other scenarios' results, evidence and screenshots.
+        script_sales(self.fake)
+        run = self.plan_dir / "runs" / "20261026T000000Z_t1"
+        run.mkdir(parents=True)
+        self.assertEqual(self.ofa_test(FAIL_FILE, run=run.name), 1)
+        self.assertEqual(self.ofa_test(PASS_FILE, run=run.name), 0)
+
+        def artifacts():
+            test = json.loads((run / "test.json").read_text())
+            records = json.loads((run / "records.json").read_text())
+            shots = json.loads((run / "screenshot_targets.json").read_text())
+            return ([(sc["id"], sc["status"]) for sc in test["scenarios"]], sorted(records),
+                    [s["scenario"] for s in shots])
+
+        self.assertEqual(artifacts(), ([("quote_confirm_fail", "fail"), ("quote_confirm_pass", "pass")],
+                                       ["quote_confirm_fail", "quote_confirm_pass"],
+                                       ["quote_confirm_fail", "quote_confirm_pass"]))
+
+        # The fixed scenario reruns under the same id: its latest result replaces the fail, nothing duplicates.
+        fixed = json.loads(PASS_FILE.read_text())
+        fixed["id"] = "quote_confirm_fail"
+        fixed_file = self.plan_dir / "fixed.json"
+        fixed_file.write_text(json.dumps(fixed))
+        self.assertEqual(self.ofa_test(fixed_file, run=run.name), 0)
+        self.assertEqual(artifacts(), ([("quote_confirm_pass", "pass"), ("quote_confirm_fail", "pass")],
+                                       ["quote_confirm_fail", "quote_confirm_pass"],
+                                       ["quote_confirm_pass", "quote_confirm_fail"]))
+        md = (run / "report.md").read_text()
+        self.assertIn("| quote_confirm_fail | pass |", md)
+        self.assertIn("Earlier `ofa test` invocations in this run: 2", md)
+        self.assertIn("quote_confirm_pass / confirmed_order", md)
 
     def test_single_invocation_has_no_earlier_section(self):
         script_sales(self.fake)
