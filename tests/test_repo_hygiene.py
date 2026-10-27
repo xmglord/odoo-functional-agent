@@ -15,7 +15,11 @@ COMPANY = ("kala" + "pata").lower()
 LICENSE_LITERALS = ("Odoo Proprietary" + " License", "OEEL" + "-1")
 RFC_RE = re.compile(r"(?<![A-ZÑ&0-9])[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}(?![A-Z0-9])")
 # SAT test RFCs verified by spike S5; filled in by the l10n_mx task.
-RFC_ALLOWLIST = frozenset()
+RFC_ALLOWLIST = frozenset({
+    "IVD920810GU2", "ZUÑ920208KL4",  # 20.0 MX demo companies 4 and 5, owners of the shipped demo CSDs
+    "XIA190128J61", "ICV060329BY0",  # 20.0 l10n_mx_edi demo partners, accepted as receivers by the test PACs
+    "XAXX010101000", "XEXX010101000",  # SAT generic RFCs (público en general, foreign receiver)
+})
 HOME_RE = re.compile(r"/(?:home|Users)/[^/\s\"']+/")
 PLAN_DIR = "docs/" + "plan/"
 KEYS_DIR = Path.home() / ".config" / "ofa" / "keys"

@@ -1,0 +1,48 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "l10n_mx_vendor_bill_withholdings",
+  "area": "l10n_mx",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "description": "Configuration only, no stamping and no network: a vendor bill for professional fees from an individual (fictional vendor) in the MX demo company INNOVACION VALOR Y DESARROLLO carries the mx chart's purchase IVA 16% plus the two withholdings, IVA withheld at two thirds (10.67% WH) and ISR withheld at 10% (10% WH I S). Proves the amounts on the bill (base 10,000.00, IVA 1,600.00, withholdings -1,066.67 and -1,000.00, total 9,533.33) and that the withholding taxes are negative percentages of the iva and isr SAT types. Needs no setup plan.",
+  "requires": {"modules": ["l10n_mx"]},
+  "preconditions": [
+    {"id": "p010", "action": "search", "model": "account.tax",
+     "domain": [["id", "in", [{"$ref": "account.4_tax14"}, {"$ref": "account.4_tax8"}, {"$ref": "account.4_tax5"}]],
+                ["type_tax_use", "=", "purchase"], ["active", "=", true]],
+     "expect": {"count": 3}}
+  ],
+  "steps": [
+    {"id": "s010", "action": "assert", "model": "account.tax", "target": {"$ref": "account.4_tax8"},
+     "expect": {"fields": {"amount": {"lt": -10.66}, "amount_type": {"eq": "percent"}, "l10n_mx_tax_type": {"eq": "iva"},
+                           "tax_exigibility": {"eq": "on_payment"}}}},
+    {"id": "s020", "action": "assert", "model": "account.tax", "target": {"$ref": "account.4_tax5"},
+     "expect": {"fields": {"amount": {"eq": -10.0}, "l10n_mx_tax_type": {"eq": "isr"}, "tax_exigibility": {"eq": "on_invoice"}}}},
+    {"id": "s030", "action": "create", "model": "res.partner",
+     "values": {"name": "OFA Consultora Independiente", "is_company": false, "country_id": {"$ref": "base.mx"}},
+     "save_as": "vendor"},
+    {"id": "s040", "action": "create", "model": "account.move",
+     "values": {"move_type": "in_invoice", "company_id": {"$ref": "base.demo_company_mx"},
+                "journal_id": {"$ref": "account.4_purchase"},
+                "partner_id": {"$var": "vendor"}, "invoice_date": "2026-10-01",
+                "invoice_line_ids": {"$create": [{"name": "OFA professional fees, October", "quantity": 1, "price_unit": 10000.0,
+                                                  "tax_ids": {"$set": [{"$ref": "account.4_tax14"}, {"$ref": "account.4_tax8"},
+                                                                       {"$ref": "account.4_tax5"}]}}]}},
+     "save_as": "bill"},
+    {"id": "s050", "action": "assert", "model": "account.move", "target": {"$var": "bill"},
+     "expect": {"fields": {"amount_untaxed": {"eq": 10000.0}, "amount_tax": {"eq": -466.67}, "amount_total": {"eq": 9533.33}}}},
+    {"id": "s060", "action": "search", "model": "account.move.line",
+     "domain": [["move_id", "=", {"$var": "bill"}], ["tax_line_id", "=", {"$ref": "account.4_tax8"}], ["balance", "=", -1066.67]],
+     "expect": {"count": 1}},
+    {"id": "s070", "action": "search", "model": "account.move.line",
+     "domain": [["move_id", "=", {"$var": "bill"}], ["tax_line_id", "=", {"$ref": "account.4_tax5"}], ["balance", "=", -1000.0]],
+     "expect": {"count": 1}},
+    {"id": "s080", "action": "call", "model": "account.move", "target": {"$var": "bill"}, "method": "action_post"},
+    {"id": "s090", "action": "assert", "model": "account.move", "target": {"$var": "bill"},
+     "expect": {"fields": {"state": {"eq": "posted"}, "amount_residual": {"eq": 9533.33}}}}
+  ],
+  "evidence": [
+    {"label": "vendor_bill", "model": "account.move", "target": {"$var": "bill"},
+     "fields": ["name", "state", "amount_untaxed", "amount_tax", "amount_total"], "screenshot": true}
+  ]
+}

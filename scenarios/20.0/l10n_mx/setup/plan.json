@@ -1,0 +1,53 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Mexican localization fixture: new MX subsidiary and payment complements",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "areas": ["l10n_mx", "accounting"],
+  "operations": [
+    {
+      "id": "op_010_install_mx_edi",
+      "type": "install_modules",
+      "modules": ["l10n_mx_edi"],
+      "depends_on": [],
+      "rationale": "CFDI stamping, PAC settings, payment ways and payment complements come from the Enterprise module l10n_mx_edi.",
+      "knowledge_refs": ["knowledge/20.0/l10n_mx/cfdi_configuration_pac_csd.md"],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_020_mx_company",
+      "type": "upsert_record",
+      "model": "res.company",
+      "key": "mx_company",
+      "values": {"name": "OFA Demo Mexicana", "country_id": {"$ref": "base.mx"}, "currency_id": {"$ref": "base.MXN"}, "zip": "06000"},
+      "match": [["name", "=", "OFA Demo Mexicana"]],
+      "depends_on": ["op_010_install_mx_edi"],
+      "rationale": "A company created with country Mexico loads the mx chart of accounts and its taxes by itself; no separate chart operation is planned.",
+      "knowledge_refs": ["knowledge/20.0/l10n_mx/mx_chart_auto_load.md", "knowledge/20.0/l10n_mx/fiscal_data_rfc_regime.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_mx_company_cfdi_settings",
+      "type": "set_settings",
+      "company": {"$ref": "__ofa__.mx_company"},
+      "values": {"l10n_mx_edi_fiscal_regime": "601", "l10n_mx_edi_pac": "solfact", "l10n_mx_edi_pac_test_env": true},
+      "depends_on": ["op_020_mx_company"],
+      "rationale": "The subsidiary issues CFDI under regime 601 through Solucion Factible, on the PAC test environment until it has its own CSD.",
+      "knowledge_refs": ["knowledge/20.0/l10n_mx/cfdi_configuration_pac_csd.md", "knowledge/20.0/l10n_mx/fiscal_data_rfc_regime.md"],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_040_mx_bank_inbound_outstanding",
+      "type": "upsert_record",
+      "model": "account.payment.method.line",
+      "key": "mx_bank_inbound_manual",
+      "company": {"$ref": "base.demo_company_mx"},
+      "values": {"payment_account_id": {"$ref": "account.4_account_journal_payment_debit_account_id"}},
+      "match": [["journal_id", "=", {"$ref": "account.4_bank"}], ["payment_type", "=", "inbound"], ["code", "=", "manual"]],
+      "depends_on": ["op_010_install_mx_edi"],
+      "rationale": "Customer payments on the MX demo company's bank journal post a journal entry to Outstanding Receipts, which the payment complement needs.",
+      "knowledge_refs": ["knowledge/20.0/l10n_mx/payment_complements.md", "knowledge/20.0/accounting/payments_and_reconciliation.md"],
+      "edition": "community"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "l10n_mx_company_chart_autoload",
+  "area": "l10n_mx",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Configuration only, no stamping and no network: a company created with country Mexico (the l10n_mx setup plan's \"OFA Demo Mexicana\") got the mx chart of accounts by itself, with its fiscal country, IVA 16% as default sales and purchase tax, cash-basis taxes switched on, the MX fiscal positions, and the CFDI settings the plan saved (regime 601, Solucion Factible on the test environment). It has no CSD certificate and no RFC, so it cannot stamp yet: a real company uploads its own CSD and sets its RFC first. Needs the l10n_mx setup plan.",
+  "requires": {"modules": ["l10n_mx", "l10n_mx_edi"]},
+  "preconditions": [
+    {"id": "p010", "action": "search", "model": "res.company",
+     "domain": [["id", "=", {"$ref": "__ofa__.mx_company"}]], "expect": {"count": 1}}
+  ],
+  "steps": [
+    {"id": "s010", "action": "assert", "model": "res.company", "target": {"$ref": "__ofa__.mx_company"},
+     "expect": {"fields": {"chart_template": {"eq": "mx"}, "account_fiscal_country_id": {"eq": {"$ref": "base.mx"}},
+                           "currency_id": {"eq": {"$ref": "base.MXN"}}, "tax_exigibility": {"eq": true},
+                           "tax_cash_basis_journal_id": {"ne": false},
+                           "account_sale_tax_id": {"ne": false}, "account_purchase_tax_id": {"ne": false},
+                           "l10n_mx_edi_fiscal_regime": {"eq": "601"}, "l10n_mx_edi_pac": {"eq": "solfact"},
+                           "l10n_mx_edi_pac_test_env": {"eq": true}, "l10n_mx_edi_certificate_ids": {"eq": []},
+                           "vat": {"eq": false}}}},
+    {"id": "s020", "action": "search", "model": "account.tax",
+     "domain": [["company_id", "=", {"$ref": "__ofa__.mx_company"}], ["type_tax_use", "=", "sale"], ["name", "=", "16%"],
+                ["amount", "=", 16.0], ["l10n_mx_tax_type", "=", "iva"], ["tax_exigibility", "=", "on_payment"]],
+     "save_as": "iva16_sale", "expect": {"count": 1}},
+    {"id": "s030", "action": "search", "model": "res.company",
+     "domain": [["id", "=", {"$ref": "__ofa__.mx_company"}], ["account_sale_tax_id", "in", {"$var": "iva16_sale"}]],
+     "expect": {"count": 1}},
+    {"id": "s040", "action": "search", "model": "account.tax",
+     "domain": [["company_id", "=", {"$ref": "__ofa__.mx_company"}], ["type_tax_use", "=", "sale"],
+                ["name", "in", ["16%", "8%", "0%", "Exento"]]],
+     "expect": {"count": 4}},
+    {"id": "s050", "action": "search", "model": "account.tax",
+     "domain": [["company_id", "=", {"$ref": "__ofa__.mx_company"}], ["type_tax_use", "=", "purchase"], ["amount", "<", 0]],
+     "expect": {"count": {"gte": 6}}},
+    {"id": "s060", "action": "search", "model": "account.fiscal.position",
+     "domain": [["company_id", "=", {"$ref": "__ofa__.mx_company"}],
+                ["name", "in", ["MX Domestic", "Foreign Customer", "Freight", "Honorarium", "Lease"]]],
+     "expect": {"count": 5}},
+    {"id": "s070", "action": "search", "model": "account.journal",
+     "domain": [["company_id", "=", {"$ref": "__ofa__.mx_company"}], ["code", "=", "CBMX"]],
+     "expect": {"count": 1}}
+  ],
+  "evidence": [
+    {"label": "mx_company", "model": "res.company", "target": {"$ref": "__ofa__.mx_company"},
+     "fields": ["name", "chart_template", "currency_id", "account_fiscal_country_id", "account_sale_tax_id",
+                "account_purchase_tax_id", "l10n_mx_edi_fiscal_regime", "l10n_mx_edi_pac", "l10n_mx_edi_pac_test_env"],
+     "screenshot": true}
+  ]
+}
