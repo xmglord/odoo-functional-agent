@@ -74,7 +74,6 @@ switches on the inter-company sales order rule for the subsidiary.
   taxes: each order line only uses the taxes of its own company.
 - Pre-state: neither product exists in the template.
 - Sources: `knowledge/20.0/multi_company/shared_vs_company_records.md`
-<!-- ofa-lint-ignore: parent_of -->
 
 ## Not covered
 - Inter-company invoices to bills (`intercompany_generate_bills_refund`) and sales orders to purchase orders

@@ -38,17 +38,21 @@ Not covered by a scenario: inter-company invoices to bills, sales orders to purc
 
 | Entry | Agent time: tokens | Agent time: minutes | Author review (min) |
 |---|---|---|---|
-| companies_and_branches.md | | | |
-| shared_vs_company_records.md | | | |
-| user_company_access.md | | | |
-| per_company_settings.md | | | |
-| intercompany_rules.md | | | |
-| multi_company_reporting.md | | | |
-| overhead | | | |
+| companies_and_branches.md | 3,043 | 0.4 | |
+| shared_vs_company_records.md | 5,759 | 0.7 | |
+| user_company_access.md | 3,734 | 0.5 | |
+| per_company_settings.md | 3,566 | 0.5 | |
+| intercompany_rules.md | 6,394 | 0.7 | |
+| multi_company_reporting.md | 2,815 | 0.4 | |
+| overhead | 284,189 | 19.5 | |
 
 Agent time is measured from the authoring agent's session transcript, between markers it printed before and after
 each entry. Two entries were edited again after their end markers inside new marker pairs:
 `companies_and_branches.md` (a cross-reference in Mexico notes) and `shared_vs_company_records.md` (twice: a stray
-lint comment removed, and the product default taxes corrected after reading `_force_default_tax`). Overhead is the
-shared research before the first entry plus the index, the fixture plan and the scenarios. Author review is minutes
-the author spent checking the entry.
+lint comment removed, and the product default taxes corrected after reading `_force_default_tax`). Tokens are the new tokens
+of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded
+(18.7 M such tokens over the session, 98% of the raw total). The agent researched all topics before the first
+marker, so the per-entry windows cover writing only and the research is in overhead; compare areas by their totals,
+not per entry. The `companies_and_branches.md` re-edit was a single call whose end marker did not parse, so its
+tokens are in overhead. Overhead is the shared research plus the index, the fixture plan and the scenarios. Author
+review is minutes the author spent checking the entry.
