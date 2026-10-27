@@ -77,16 +77,19 @@ by the l10n_mx task, so the links to the entries here are listed instead:
 
 | Entry | Agent time: tokens | Agent time: minutes | Author review (min) |
 |---|---|---|---|
-| mx_chart_auto_load.md | | | |
-| iva_and_withholdings.md | | | |
-| fiscal_data_rfc_regime.md | | | |
-| cfdi_usage_payment_way_policy.md | | | |
-| cfdi_configuration_pac_csd.md | | | |
-| payment_complements.md | | | |
-| foreign_trade.md | | | |
-| overhead | | | |
+| mx_chart_auto_load.md | 2,769 | 0.4 | |
+| iva_and_withholdings.md | 3,264 | 0.5 | |
+| fiscal_data_rfc_regime.md | 2,989 | 0.4 | |
+| cfdi_usage_payment_way_policy.md | 3,007 | 0.5 | |
+| cfdi_configuration_pac_csd.md | 4,731 | 0.6 | |
+| payment_complements.md | 2,635 | 0.4 | |
+| foreign_trade.md | 2,774 | 0.4 | |
+| overhead | 325,862 | 18.2 | |
 
 Agent time is measured from the authoring agent's session transcript, between markers it printed before and after
 each entry. `cfdi_configuration_pac_csd.md` was edited once more after its end marker, inside a second marker pair.
-Overhead is the shared research before the first entry plus the index, the fixture plan and the scenarios. Author
-review is minutes the author spent checking the entry.
+Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already
+cached context are excluded (22.9 M such tokens over the session, 99% of the raw total). The agent researched all
+topics before the first marker, so the per-entry windows cover writing only and the research is in overhead; compare
+areas by their totals, not per entry. Overhead is the shared research plus the index, the fixture plan and the
+scenarios. Author review is minutes the author spent checking the entry.
