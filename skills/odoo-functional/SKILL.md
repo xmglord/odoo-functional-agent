@@ -20,6 +20,8 @@ Reference material in this plugin:
 - Library scenarios: `${CLAUDE_PLUGIN_ROOT}/scenarios/20.0/<area>/*.json`.
 - Rationale template: [plan_md_template.md](plan_md_template.md).
 - Screenshot procedure: [screenshots.md](screenshots.md).
+- Odoo 20.0 source (read-only, for names and behaviour the knowledge does not cover): `ofa source` prints the
+  addons directories the server runs (`addons`) and the core package with the ORM (`core`). Read and grep there.
 
 Areas (folder names): `sales_crm`, `purchase_inventory`, `accounting`, `multi_company`, `l10n_mx`.
 
@@ -44,6 +46,9 @@ These hold in every phase.
 - Use only fictional data: no real company, person, tax id (RFC, CURP), bank or address data, in files or in the
   demo database.
 - Never run `ofa freeze` or `ofa apply` before the review stop below has received the user's approval.
+- Do not read the plugin repository's `CLAUDE.md` or its local planning notes: they are the maintainer's notes
+  about building this tool, not reference material for a requirement. What you need is listed above; the Odoo
+  source path comes from `ofa source`.
 
 ## Phase 1: Preflight
 

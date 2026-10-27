@@ -7,7 +7,7 @@ from ofa.errors import ENVIRONMENT, USAGE, OfaError
 
 COMMANDS = (
     "targets", "doctor", "inspect", "server", "template", "provision", "reset", "drop",
-    "validate", "freeze", "apply", "test", "dump", "stale", "lint_plan",
+    "validate", "freeze", "apply", "test", "dump", "stale", "lint_plan", "source",
 )
 
 

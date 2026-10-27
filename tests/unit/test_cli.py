@@ -60,8 +60,9 @@ class CliTest(unittest.TestCase):
 
     def test_cli_names(self):
         names = [cli.cli_name(n) for n in cli.COMMANDS]
-        self.assertEqual(len(names), 15)
+        self.assertEqual(len(names), 16)  # the plan's 15, plus `source` (T24)
         self.assertIn("lint-plan", names)
+        self.assertIn("source", names)
         self.assertNotIn("lint_plan", names)
 
     def test_launcher_help_and_stubs(self):
@@ -82,3 +83,28 @@ class CliTest(unittest.TestCase):
     def test_guard_error_without_message(self):
         e = GuardError("NOT_REGISTERED")
         self.assertEqual((e.label, e.msg, e.exit_code), ("NOT_REGISTERED", "NOT_REGISTERED", 3))
+
+
+class SourceCommandTest(unittest.TestCase):
+    # T24: the skill read the maintainer's CLAUDE.md to find the Odoo source; `ofa source` answers that instead.
+    def test_prints_addons_path_and_core_from_the_odoo_conf(self):
+        import json
+        from types import SimpleNamespace
+        from unittest import mock
+
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__("shutil").rmtree, tmp)
+        for d in ("enterprise", "odoo/addons", "odoo/odoo/addons"):
+            (tmp / d).mkdir(parents=True)
+        (tmp / "odoo" / "odoo-bin").write_text("")
+        conf = tmp / "odoo.conf"
+        conf.write_text(f"[options]\naddons_path = {tmp}/enterprise, {tmp}/odoo/addons, {tmp}/missing\n")
+        server = SimpleNamespace(odoo_conf=conf, odoo_bin=tmp / "odoo" / "odoo-bin", odoo_version="20.0",
+                                 edition="enterprise")
+        out = io.StringIO()
+        with mock.patch("ofa.config.load", return_value=SimpleNamespace(server=server)), \
+                contextlib.redirect_stdout(out):
+            self.assertEqual(cli.main(["source", "--json"]), 0)
+        paths = [(r["kind"], r["path"]) for r in json.loads(out.getvalue())["paths"]]
+        self.assertEqual(paths, [("addons", f"{tmp}/enterprise"), ("addons", f"{tmp}/odoo/addons"),
+                                 ("addons", f"{tmp}/odoo/odoo/addons"), ("core", f"{tmp}/odoo/odoo")])
