@@ -51,10 +51,10 @@ settings: []
   `company_ids`. A company created in the UI by the admin is likewise not given to `ofa_bot`: `ofa apply` adds every
   company a plan creates to the bot, but not companies created some other way.
 - **The ofa bot sees every company it has.** `ofa_bot` is provisioned with the admin's `company_ids` (on the demo
-  template: the five demo companies) plus every company a plan creates. Scenario calls carry no
-  `allowed_company_ids`, so a scenario search finds records of all those companies. Isolation cannot be shown by
-  "switching company" in a scenario; `multi_company_isolation` removes companies from the bot's `company_ids`
-  instead (the same `company_ids` that the record rules read) and puts them back.
+  template: the five demo companies) plus every company a plan creates. A scenario call without a company carries
+  no `allowed_company_ids`, so a search finds records of all those companies. To check what a user of one company
+  sees, give the scenario or the step a `company` key (`docs/scenario_format.md`), as `multi_company_isolation`
+  does; never change the bot's `company_ids` for it.
 - `allowed_company_ids` with a company the user lacks fails the whole call with `AccessError`; in a plan, the op's
   `company` must be a company the bot has (a company created earlier in the same plan is).
 - Removing a company from a user does not touch the records of that company; it only hides them. Removing the

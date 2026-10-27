@@ -20,14 +20,12 @@ changed afterwards.
 Scenarios for this area live in `scenarios/20.0/multi_company/`. Both need the fixture plan in
 `scenarios/20.0/multi_company/setup/` applied first (Enterprise: it installs the inter-company modules).
 
-- `multi_company_isolation` (community): a contact, product and sales order of the subsidiary are invisible to a
-  user without the subsidiary; with only its branch, the contact and product are visible and the order is not.
-  - Limitation: scenario steps cannot send `allowed_company_ids` (the format has no company context), and `ofa_bot`
-    is a member of every company (the admin's five demo companies from provisioning, plus every company a plan
-    creates). So the scenario does not "switch to company A": it removes the subsidiary and its branch from
-    `ofa_bot`'s `company_ids`, which is what the record rules read when no `allowed_company_ids` is sent, and adds
-    them back. Its precondition re-adds them first, so a run that stopped half-way is repaired by the next one.
-    While it runs, any other apply or scenario on the same target sees the bot without those two companies.
+- `multi_company_isolation` (community): working in the main company, a contact, product and sales order of the
+  subsidiary are invisible; working in its branch, the contact and product are visible and the order is not;
+  working in the subsidiary, the order is visible. `ofa_bot` is a member of every company (the admin's five demo
+  companies from provisioning, plus every company a plan creates), so each check names its company with the
+  step's `company` key, which sends `allowed_company_ids` like the company switcher does. The bot's own
+  `company_ids` are never changed.
 - `multi_company_intercompany_so_po` (enterprise): a purchase order of the main company to the subsidiary creates
   the subsidiary's draft sales order (`sale_purchase_inter_company_rules`).
 
@@ -46,13 +44,13 @@ Not covered by a scenario: inter-company invoices to bills, sales orders to purc
 | multi_company_reporting.md | 2,815 | 0.4 | |
 | overhead | 284,189 | 19.5 | |
 
-Agent time is measured from the authoring agent's session transcript, between markers it printed before and after
-each entry. Two entries were edited again after their end markers inside new marker pairs:
-`companies_and_branches.md` (a cross-reference in Mexico notes) and `shared_vs_company_records.md` (twice: a stray
-lint comment removed, and the product default taxes corrected after reading `_force_default_tax`). Tokens are the new tokens
-of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded
-(18.7 M such tokens over the session, 98% of the raw total). The agent researched all topics before the first
-marker, so the per-entry windows cover writing only and the research is in overhead; compare areas by their totals,
-not per entry. The `companies_and_branches.md` re-edit was a single call whose end marker did not parse, so its
-tokens are in overhead. Overhead is the shared research plus the index, the fixture plan and the scenarios. Author
-review is minutes the author spent checking the entry.
+Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each
+entry. Two entries were edited again after their end markers inside new marker pairs: `companies_and_branches.md` (a
+cross-reference in Mexico notes) and `shared_vs_company_records.md` (twice: a stray lint comment removed, and the
+product default taxes corrected after reading `_force_default_tax`). Tokens are the new tokens of its API calls in that
+window (input, cache writes and output); re-reads of already cached context are excluded (18.7 M such tokens over the
+session, 98% of the raw total). The agent researched all topics before the first marker, so the per-entry windows cover
+writing only and the research is in overhead; compare areas by their totals, not per entry. The
+`companies_and_branches.md` re-edit was a single call whose end marker did not parse, so its tokens are in overhead.
+Overhead is the shared research plus the index, the fixture plan and the scenarios. Author review is minutes the author
+spent checking the entry.

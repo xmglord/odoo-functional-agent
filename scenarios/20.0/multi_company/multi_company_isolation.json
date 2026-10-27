@@ -4,42 +4,13 @@
   "area": "multi_company",
   "odoo_version": "20.0",
   "edition": "community",
-  "description": "A contact, a product and a sales order restricted to the subsidiary are invisible to a user whose companies exclude the subsidiary and its branch, while records of the main company and shared records stay visible; with only the branch added back, the subsidiary's contact and product become visible (parent_of rule) but its sales order does not (company_id in rule). The scenario format has no company context and ofa_bot holds every company, so the scenario narrows ofa_bot's company_ids (the same company_ids the record rules read when no allowed_company_ids is sent) and restores them; the precondition re-adds them in case an earlier run stopped half-way. Needs the multi_company setup plan.",
+  "description": "A contact, a product and a sales order restricted to the subsidiary are invisible to a user working in the main company, while records of the main company and shared records stay visible; working in the subsidiary's branch, the subsidiary's contact and product are visible (parent_of rule) but its sales order is not (company_id in rule); working in the subsidiary, the order is visible. Each check runs with the step's `company` key (allowed_company_ids), so ofa_bot's own companies are never changed. Needs the multi_company setup plan.",
   "requires": {
     "modules": [
       "sale_management"
     ]
   },
   "preconditions": [
-    {
-      "id": "p010",
-      "action": "write",
-      "model": "res.users",
-      "target": {
-        "$search": {
-          "model": "res.users",
-          "domain": [
-            [
-              "login",
-              "=",
-              "ofa_bot"
-            ]
-          ]
-        }
-      },
-      "values": {
-        "company_ids": {
-          "$add": [
-            {
-              "$ref": "__ofa__.mc_subsidiary"
-            },
-            {
-              "$ref": "__ofa__.mc_branch"
-            }
-          ]
-        }
-      }
-    },
     {
       "id": "p020",
       "action": "search",
@@ -140,39 +111,6 @@
       }
     },
     {
-      "id": "s060",
-      "action": "write",
-      "model": "res.users",
-      "target": {
-        "$search": {
-          "model": "res.users",
-          "domain": [
-            [
-              "login",
-              "=",
-              "ofa_bot"
-            ]
-          ]
-        }
-      },
-      "values": {
-        "company_ids": [
-          [
-            3,
-            {
-              "$ref": "__ofa__.mc_subsidiary"
-            }
-          ],
-          [
-            3,
-            {
-              "$ref": "__ofa__.mc_branch"
-            }
-          ]
-        ]
-      }
-    },
-    {
       "id": "s070",
       "action": "search",
       "model": "res.partner",
@@ -196,6 +134,9 @@
       "save_as": "visible",
       "expect": {
         "count": 2
+      },
+      "company": {
+        "$ref": "base.main_company"
       }
     },
     {
@@ -213,6 +154,9 @@
       ],
       "expect": {
         "count": 0
+      },
+      "company": {
+        "$ref": "base.main_company"
       }
     },
     {
@@ -230,6 +174,9 @@
       ],
       "expect": {
         "count": 0
+      },
+      "company": {
+        "$ref": "base.main_company"
       }
     },
     {
@@ -247,6 +194,9 @@
       ],
       "expect": {
         "count": 0
+      },
+      "company": {
+        "$ref": "base.main_company"
       }
     },
     {
@@ -264,32 +214,9 @@
       ],
       "expect": {
         "count": 1
-      }
-    },
-    {
-      "id": "s120",
-      "action": "write",
-      "model": "res.users",
-      "target": {
-        "$search": {
-          "model": "res.users",
-          "domain": [
-            [
-              "login",
-              "=",
-              "ofa_bot"
-            ]
-          ]
-        }
       },
-      "values": {
-        "company_ids": {
-          "$add": [
-            {
-              "$ref": "__ofa__.mc_branch"
-            }
-          ]
-        }
+      "company": {
+        "$ref": "base.main_company"
       }
     },
     {
@@ -307,6 +234,9 @@
       ],
       "expect": {
         "count": 1
+      },
+      "company": {
+        "$ref": "__ofa__.mc_branch"
       }
     },
     {
@@ -324,6 +254,9 @@
       ],
       "expect": {
         "count": 1
+      },
+      "company": {
+        "$ref": "__ofa__.mc_branch"
       }
     },
     {
@@ -341,32 +274,9 @@
       ],
       "expect": {
         "count": 0
-      }
-    },
-    {
-      "id": "s160",
-      "action": "write",
-      "model": "res.users",
-      "target": {
-        "$search": {
-          "model": "res.users",
-          "domain": [
-            [
-              "login",
-              "=",
-              "ofa_bot"
-            ]
-          ]
-        }
       },
-      "values": {
-        "company_ids": {
-          "$add": [
-            {
-              "$ref": "__ofa__.mc_subsidiary"
-            }
-          ]
-        }
+      "company": {
+        "$ref": "__ofa__.mc_branch"
       }
     },
     {
@@ -384,6 +294,9 @@
       ],
       "expect": {
         "count": 1
+      },
+      "company": {
+        "$ref": "__ofa__.mc_subsidiary"
       }
     }
   ],
@@ -412,29 +325,10 @@
         "partner_id",
         "state"
       ],
-      "screenshot": true
-    },
-    {
-      "label": "bot_companies",
-      "model": "res.users",
-      "target": {
-        "$search": {
-          "model": "res.users",
-          "domain": [
-            [
-              "login",
-              "=",
-              "ofa_bot"
-            ]
-          ]
-        }
-      },
-      "fields": [
-        "login",
-        "company_id",
-        "company_ids"
-      ],
-      "screenshot": false
+      "screenshot": true,
+      "company": {
+        "$ref": "__ofa__.mc_subsidiary"
+      }
     }
   ]
 }
