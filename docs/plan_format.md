@@ -20,7 +20,7 @@ plan again changes nothing and reports every operation as `unchanged`.
 ```
 ofa validate <plan_dir> [--target <name>]   # check the rules below; exit 2 on any problem
 ofa freeze <plan_dir>                       # validate, then write plan.approved
-ofa lint-plan <plan_dir> --target <name>    # check every name in plan.json and plan.md; exit 2 on any error
+ofa lint-plan <plan_dir> --target <name>    # check every name in plan.json and plan.md; exit 2 on a plan.json error
 ofa apply <plan_dir> --target <name>        # apply the frozen plan; prints the run id
 ```
 
@@ -28,11 +28,16 @@ ofa apply <plan_dir> --target <name>        # apply the frozen plan; prints the 
   `ir.model.fields` (not `fields_get`, which hides fields restricted to groups) and `ir.model.data`. A name the
   target lacks is looked up in a static index of the Odoo source the server runs (the addons paths of the Odoo
   conf, Community and Enterprise), because the plan's modules are not installed yet. It reports `NOT_IN_20` (no
-  such name in 20.0), `NEEDS_MODULE` (only a module the plan does not install defines it; a warning in plan.md,
-  where it can be a rejected alternative), `BAD_SELECTION`, `UNRESOLVED_REF` and `EDITION`. In plan.md it checks
-  dotted names in backticks (`sale.order.state`, `base.group_user`) and bare snake_case names (`invoice_policy`);
-  its summary counts what it could not check. Names listed in a `<!-- ofa-lint-ignore: a, b -->` comment are
-  skipped, for prose that says a name no longer exists.
+  such name in 20.0), `NEEDS_MODULE` (only a module the plan does not install defines it), `BAD_SELECTION`,
+  `UNRESOLVED_REF` and `EDITION`. In plan.md it checks dotted names in backticks (`sale.order.state`,
+  `base.group_user`) and bare snake_case names (`invoice_policy`); its summary counts what it could not check.
+  Names listed in a `<!-- ofa-lint-ignore: a, b -->` comment are skipped, for prose that says a name no longer
+  exists.
+- Severity: a problem in plan.json is an error and makes `lint-plan` exit 2; a problem in plan.md is a warning
+  (`plan.md:<line>: <CODE>: <name>: <reason> (warning)`) and does not change the exit code. plan.json is what
+  `apply` runs; prose also names things the checker cannot resolve (context keys, access record names, chart
+  template codes) and rejected alternatives from modules the plan does not install, so the reviewer judges
+  those. With `--json` every problem carries its `severity`.
 - The source index is built on first use and cached in `~/.cache/ofa/` (`$OFA_CACHE_DIR`), keyed by the source
   checkouts' commits. Because it is derived from Enterprise code it never lives in the repository: `lint-plan`
   refuses a cache directory inside it, and the repo hygiene test fails on any tracked or untracked index file.

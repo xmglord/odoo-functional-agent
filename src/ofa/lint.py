@@ -36,9 +36,9 @@ _NOT_NAME_SUFFIX = re.compile(r"\.(md|py|xml|json|csv|js|html|txt|com|org|io|tom
 _WORDS_IGNORED = {"True", "False", "None", "and", "or", "not", "in", "is", "if", "else", "for", "self"}
 
 
-# In plan.md a name from a module the plan does not install can be a legitimate mention (an alternative
-# the plan rejects), so there it is a warning; everything else, and anything in plan.json, is an error.
-PROSE_WARNINGS = {"NEEDS_MODULE"}
+# Only plan.json blocks: it is what apply runs. Prose names are warnings for the reviewer, because prose also
+# names things Odoo defines outside fields and methods (context keys, access record names, template codes),
+# and a rejected alternative may come from a module the plan does not install.
 
 
 @dataclass
@@ -50,7 +50,7 @@ class Problem:
 
     @property
     def severity(self):
-        return "warning" if self.where.startswith("plan.md") and self.code in PROSE_WARNINGS else "error"
+        return "warning" if self.where.startswith("plan.md") else "error"
 
     def line(self):
         return f"{self.where}: {self.code}: {self.name}: {self.detail}" + (

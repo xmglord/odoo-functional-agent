@@ -211,6 +211,7 @@ class PlanMdTest(LintCase):
             """)
         self.assertEqual(self.codes(r), [("NOT_IN_20", "ir.model.access"), ("NOT_IN_20", "sale.order.require_payment")])
         self.assertEqual(r.problems[0].where, "plan.md:3")
+        self.assertEqual(r.errors, [])
         self.assertEqual(r.md_checked, 3)
 
     def test_xmlids_before_one_segment_models(self):
@@ -221,6 +222,23 @@ class PlanMdTest(LintCase):
                          [("NEEDS_MODULE", "project.group_project_milestone", "warning")])
         r = self.md("The group `base.group_nobody` is wrong.")
         self.assertEqual(self.codes(r), [("NOT_IN_20", "base.group_nobody")])
+
+    def test_prose_problems_are_warnings_with_line_and_reason(self):
+        # Blind T18 sample: all 8 false flags came from plan.md, none from plan.json, so only plan.json blocks.
+        r = self.md("""
+            Group by `group_by`; the record `res.partner.vip_user` and `base.group_nobody`.
+            """)
+        self.assertEqual([p.severity for p in r.problems], ["warning"] * 3)
+        self.assertEqual(r.errors, [])
+        self.assertEqual(r.problems[0].line(), "plan.md:2: NOT_IN_20: group_by: no field, method, module, xmlid or "
+                         "selection value of that name in Odoo 20.0 (warning)")
+
+    def test_plan_json_still_blocks_beside_prose_warnings(self):
+        r = self.run_lint([op("op_010", "upsert_record", model="res.partner", key="p", values={"nmae": "x"})],
+                          "Uses `sale.order.require_payment`.")
+        self.assertEqual([(p.where.split(":")[0], p.severity) for p in r.problems],
+                         [("plan.json", "error"), ("plan.md", "warning")])
+        self.assertEqual(len(r.errors), 1)
 
     def test_needs_module_in_prose_is_a_warning(self):
         r = self.md("Odoo's Approvals app (`approval.request`) was rejected.")

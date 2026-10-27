@@ -92,30 +92,35 @@ These hold in every phase.
 4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
    the literal `[op_id]`, each in its own brackets.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
-6. Plan lint gate: run `ofa lint-plan plans/<slug> --target <slug>` and fix the plan until it exits 0. It checks
-   every module, model, field, settings key, method, xmlid and selection value in plan.json, and every technical
-   name in backticks in plan.md, against the target and the 20.0 source, so names remembered from older Odoo
-   versions are caught before the review stop. For each line:
-   - `NOT_IN_20`: the name does not exist in 20.0. Find the 20.0 name (`ofa inspect`, the knowledge entries) and
-     correct plan.json or plan.md. If plan.md names it on purpose to say it no longer exists, list it in a comment
-     `<!-- ofa-lint-ignore: name1, name2 -->` in plan.md.
-   - `NEEDS_MODULE`: only a module the plan does not install defines it. In plan.json, install that module or drop
-     the name. In plan.md it is a warning: keep it only if the text presents it as not installed (an alternative
-     you rejected), and say so.
-   - `BAD_SELECTION`, `UNRESOLVED_REF`, `EDITION`: fix the value, the reference or the edition.
-   Never weaken the plan to silence the linter, and re-run `ofa validate` after every fix. The summary line
-   counts the plan.md names it could not check (bare names without an underscore, paths, names outside
-   backticks); write technical names in backticks with their model (`sale.order.state`) so they get checked.
+6. Plan lint: run `ofa lint-plan plans/<slug> --target <slug>`. It checks every module, model, field, settings
+   key, method, xmlid and selection value in plan.json, and every technical name in backticks in plan.md, against
+   the target and the 20.0 source, so names remembered from older Odoo versions are caught before the review stop.
+   - **plan.json errors block.** Fix the plan until `lint-plan` exits 0, then re-run `ofa validate`:
+     `NOT_IN_20` (find the 20.0 name with `ofa inspect` or the knowledge entries), `NEEDS_MODULE` (install that
+     module or drop the name), `BAD_SELECTION`, `UNRESOLVED_REF`, `EDITION` (fix the value, the reference or the
+     edition).
+   - **plan.md lines are warnings** (`plan.md:<line>: <CODE>: <name>: <reason> (warning)`). They do not block,
+     because prose also names things the linter cannot resolve (context keys, access record names, template
+     codes). Do not reword the prose, drop a name or add an ignore comment to make a warning go away; the
+     reviewer judges them. Keep every warning of the last run for the "Names to review" section of the review
+     stop. The only ignore comment allowed is for a name the prose mentions on purpose as no longer existing
+     (`groups_id` in "`res.users.group_ids` (`groups_id` no longer exists)"): list it in
+     `<!-- ofa-lint-ignore: name1, name2 -->` in plan.md so it does not clutter that list.
+   The summary line counts the plan.md names it could not check (bare names without an underscore, paths, names
+   outside backticks); write technical names in backticks with their model (`sale.order.state`) so they get
+   checked.
 
 ## Phase 4: Review stop
 
-Show the user the full plan.md, the list of operations (id, type, one line each) and the plan directory path. Then
-stop and wait for an explicit approval message from the user, such as "approved" or "yes, apply it". A question, a
-comment, silence, or approval given for an earlier version is not approval. Never run `ofa freeze` or `ofa apply`
-without that approval message in the conversation, even if the user asked earlier to "do everything". A changed plan
-needs approval again: if you edit plan.json or a decision in plan.md for any reason (user feedback, a validation
-error, a failed apply), re-run `ofa validate`, show the changes and wait for a new approval. Keep the exact approval
-message; the report quotes it.
+Show the user the full plan.md, the list of operations (id, type, one line each), the plan directory path and a
+section **"Names to review"**: every plan.md warning of the last `ofa lint-plan` run, one per line with its plan.md
+line number, the name and the linter's reason (or "none" when there are no warnings). Then stop and wait for an
+explicit approval message from the user, such as "approved" or "yes, apply it". A question, a comment, silence, or
+approval given for an earlier version is not approval. Never run `ofa freeze` or `ofa apply` without that approval
+message in the conversation, even if the user asked earlier to "do everything". A changed plan needs approval
+again: if you edit plan.json or a decision in plan.md for any reason (user feedback, a validation error, a failed
+apply), re-run `ofa validate` and `ofa lint-plan`, show the changes and the new "Names to review", and wait for a
+new approval. Keep the exact approval message; the report quotes it.
 
 ## Phase 5: Apply
 
