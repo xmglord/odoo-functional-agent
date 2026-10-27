@@ -108,7 +108,8 @@ these first.
   `set_int`/`get_int`, `set_float`/`get_float`, `set_bool`/`get_bool`
   (`odoo/odoo/addons/base/models/ir_config_parameter.py@20.0`).
 - **`res.users.group_ids`.** The user's groups field is `group_ids` (with `all_group_ids` for groups plus implied
-  groups), not `groups_id` (`odoo/odoo/addons/base/models/res_users.py@20.0`).
+  groups), not `groups_id` (`odoo/odoo/addons/base/models/res_users.py@20.0`). Already so in 19.0; listed because
+  older guides and model memory say otherwise.
 - **Access rights are `ir.access`.** The access-rights model is `ir.access` (`name`, `model_id`, `group_id`,
   `operation`, ...), not `ir.model.access` with its `perm_read`/`perm_write`/... columns
   (`odoo/odoo/addons/base/models/ir_access.py@20.0`).
@@ -121,10 +122,12 @@ these first.
   use the underlying fields.
 - **Tax mapping lives on the tax.** Fiscal position mapping is no longer edited on the fiscal position form. Each tax
   carries `fiscal_position_ids` and `original_tax_ids` (the taxes it replaces)
-  (`odoo/addons/account/models/account_tax.py@20.0`).
+  (`odoo/addons/account/models/account_tax.py@20.0`). Already so in 19.0; listed because older guides and model
+  memory say otherwise.
 - **A Mexican company loads the `mx` chart automatically.** Creating a company with country Mexico triggers the
   localization install and loads the `mx` chart of accounts for it
   (`odoo/addons/account/models/company.py@20.0`, `install_l10n_modules`). Do not plan a separate chart load for it.
+  Already so in 19.0; listed because older guides and model memory say otherwise.
 - **Unit of measure on moves and purchase lines is `uom_id`.** `stock.move.product_uom`,
   `stock.move.line.product_uom_id` and `purchase.order.line.product_uom_id` are now `uom_id`
   (`odoo/addons/stock/models/stock_move.py@20.0`, `stock_move_line.py`,
