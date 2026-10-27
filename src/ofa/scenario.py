@@ -18,8 +18,10 @@ VAR_RE = re.compile(r"^[a-z_][a-z0-9_]{0,60}$")
 OPS = ("eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "contains")
 
 TOP_REQUIRED = ("format", "id", "area", "odoo_version", "edition", "description", "steps")
-TOP_OPTIONAL = ("requires", "preconditions", "evidence")
+TOP_OPTIONAL = ("requires", "preconditions", "evidence", "company")
 STEP_COMMON = ("id", "action", "model")
+# Any step may name a company; its calls then run in that company (overrides the scenario-level `company`).
+STEP_OPTIONAL = ("company",)
 # action -> (required keys besides id/action/model, optional keys)
 ACTIONS = {
     "create": (("values",), ("save_as",)),
@@ -30,7 +32,7 @@ ACTIONS = {
     "assert": (("target", "expect"), ()),
 }
 EVIDENCE_KEYS = ("label", "model", "target", "fields")
-EVIDENCE_OPTIONAL = ("screenshot",)
+EVIDENCE_OPTIONAL = ("screenshot", "company")
 
 PASS, FAIL, ERROR, SKIPPED = "pass", "fail", "error", "skipped"
 REQUIRES_STEP = "requires"
@@ -92,6 +94,11 @@ def _check_expect(expect, where, allowed):
             _check_op_object(ops, f"{where}.fields.{name}")
 
 
+def _check_company(value, where):
+    if not (isinstance(value, dict) and len(value) == 1 and next(iter(value)) in ("$ref", "$var", "$search")):
+        raise _bad(where, 'must be one {"$ref"}, {"$var"} or {"$search"} naming a res.company')
+
+
 def _check_steps(steps, where, seen_ids):
     if not isinstance(steps, list) or not steps:
         raise _bad(where, "must be a non-empty list")
@@ -103,7 +110,7 @@ def _check_steps(steps, where, seen_ids):
         if action not in ACTIONS:
             raise _bad(at, f"action must be one of {', '.join(ACTIONS)}")
         required, optional = ACTIONS[action]
-        _check_keys(step, at, STEP_COMMON + required, optional)
+        _check_keys(step, at, STEP_COMMON + required, optional + STEP_OPTIONAL)
         _check_str(step["id"], f"{at}.id", ID_RE)
         if step["id"] in seen_ids:
             raise _bad(at, f"duplicate step id {step['id']!r}")
@@ -112,6 +119,8 @@ def _check_steps(steps, where, seen_ids):
         seen_ids.add(step["id"])
         _check_str(step["model"], f"{at}.model")
         at = f"{where}[{step['id']}]"
+        if "company" in step:
+            _check_company(step["company"], f"{at}.company")
         if "values" in step and not isinstance(step["values"], dict):
             raise _bad(f"{at}.values", "must be an object")
         if "domain" in step and not isinstance(step["domain"], list):
@@ -157,6 +166,8 @@ def validate(scenario, where="scenario"):
         mods = req.get("modules", [])
         if not isinstance(mods, list) or not all(isinstance(m, str) and m for m in mods):
             raise _bad(f"{where}.requires.modules", "must be a list of module names")
+    if "company" in scenario:
+        _check_company(scenario["company"], f"{where}.company")
     seen = set()
     if "preconditions" in scenario:
         _check_steps(scenario["preconditions"], f"{where}.preconditions", seen)
@@ -178,6 +189,8 @@ def validate(scenario, where="scenario"):
             raise _bad(f"{at}.fields", "must be a non-empty list of field names")
         if "screenshot" in item and not isinstance(item["screenshot"], bool):
             raise _bad(f"{at}.screenshot", "must be true or false")
+        if "company" in item:
+            _check_company(item["company"], f"{at}.company")
     return scenario
 
 
@@ -272,6 +285,33 @@ def _check_expect_live(client, expect, vars, count, rows, label_prefix=""):
             check_ops(resolved, refs.normalize_read(row.get(name)), f"{label_prefix}{name} of id {row.get('id')}")
 
 
+class _InCompany:
+    """The client with `allowed_company_ids` set on every call, like a user who picked that company.
+
+    A context the call passes itself (a wizard action's) is merged on top.
+    """
+
+    def __init__(self, client, company_id):
+        self._client = client
+        self._ctx = {"allowed_company_ids": [company_id]}
+
+    def call(self, model, method, *, context=None, **kw):
+        return self._client.call(model, method, context={**self._ctx, **(context or {})}, **kw)
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
+def in_company(client, spec, vars):
+    """`client` itself when `spec` is None, else a client whose calls run in the company `spec` resolves to."""
+    if spec is None:
+        return client
+    company_id = refs.resolve(client, spec, vars)
+    if not _is_int(company_id):
+        raise ValidationError("BAD_TARGET", f"company must resolve to one res.company id, got {company_id!r}")
+    return _InCompany(client, company_id)
+
+
 def _run_step(client, step, vars):
     """Run one step and return its {"model", "ids"} records. Raises StepFailed or OfaError."""
     action, model = step["action"], step["model"]
@@ -311,8 +351,11 @@ def _run_step(client, step, vars):
     return records
 
 
-def _run_steps(client, steps, vars, failure_status):
-    """Run steps until the first failure. Returns (status, results)."""
+def _run_steps(client, steps, vars, failure_status, company=None):
+    """Run steps until the first failure. Returns (status, results).
+
+    `company` is the scenario-level company spec; a step's own `company` overrides it.
+    """
     results = []
     status = PASS
     for step in steps:
@@ -320,7 +363,7 @@ def _run_steps(client, steps, vars, failure_status):
             results.append({"id": step["id"], "status": SKIPPED, "message": "", "records": {"model": step["model"], "ids": []}})
             continue
         try:
-            records = _run_step(client, step, vars)
+            records = _run_step(in_company(client, step.get("company", company), vars), step, vars)
             results.append({"id": step["id"], "status": PASS, "message": "", "records": records})
         except StepFailed as e:
             status = failure_status
@@ -380,10 +423,10 @@ def run(client, scenario):
         steps_out.append({"id": REQUIRES_STEP, "status": ERROR, "message": scrub(problem), "records": {"model": "", "ids": []}})
     if status == PASS and scenario.get("preconditions"):
         # A failing precondition means the scenario could not be set up: error, not fail.
-        status, results = _run_steps(client, scenario["preconditions"], vars, ERROR)
+        status, results = _run_steps(client, scenario["preconditions"], vars, ERROR, scenario.get("company"))
         steps_out += results
     if status == PASS:
-        status, results = _run_steps(client, scenario["steps"], vars, FAIL)
+        status, results = _run_steps(client, scenario["steps"], vars, FAIL, scenario.get("company"))
         steps_out += results
     else:
         done = {s["id"] for s in steps_out}
@@ -403,8 +446,9 @@ def collect_evidence(client, scenario, vars):
     for item in scenario.get("evidence", []):
         label, model = item["label"], item["model"]
         try:
-            ids = _ids(refs.resolve(client, item["target"], vars), f"evidence {label}")
-            rows = client.call(model, "read", ids=ids, fields=list(item["fields"]))
+            reader = in_company(client, item.get("company", scenario.get("company")), vars)
+            ids = _ids(refs.resolve(reader, item["target"], vars), f"evidence {label}")
+            rows = reader.call(model, "read", ids=ids, fields=list(item["fields"]))
         except OfaError as e:
             out[label] = {"error": safe_message(e)}
             continue

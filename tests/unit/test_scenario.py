@@ -99,6 +99,9 @@ class LoadTest(unittest.TestCase):
             (lambda d: d["evidence"][1].update(label="confirmed_order"), "duplicate label"),
             (lambda d: d["evidence"][0].update(screenshot="yes"), "screenshot"),
             (lambda d: d.update(requires={"modules": "sale"}), "requires.modules"),
+            (lambda d: d.update(company=4), "company"),
+            (lambda d: d["steps"][0].update(company={"$ref": "base.main_company", "$var": "x"}), "company"),
+            (lambda d: d["evidence"][0].update(company="base.main_company"), "company"),
         ]
         for mutate, needle in cases:
             with self.subTest(needle=needle):
@@ -222,6 +225,38 @@ class RunTest(FakeCase):
         result, _, _ = self.run_file()
         self.assertEqual(result["status"], "error")
         self.assertTrue(result["steps"][0]["message"].startswith("SERVER_DOWN"))
+
+    def test_company_context_scenario_step_and_evidence(self):
+        # The scenario runs in company 1; s020 overrides it with company 3, and so does the second evidence item.
+        script_sales(self.fake)
+        self.fake.script("ir.model.data", "search_read", lambda req: (
+            [{"id": 901, "model": "res.company", "res_id": 3}]
+            if req.params["domain"] == [["module", "=", "__ofa__"], ["name", "=", "sub"]] else _xmlid(req)))
+        data = copy.deepcopy(scenario.load(PASS_FILE))
+        self.fake.script("res.company", "search", [1])
+        data["company"] = {"$search": {"model": "res.company", "domain": [["id", "=", 1]]}}
+        data["steps"][1]["company"] = {"$ref": "__ofa__.sub"}
+        data["evidence"][1]["company"] = {"$ref": "__ofa__.sub"}
+        scenario.validate(data)
+        result, evidence, _ = scenario.run(self.c, data)
+        self.assertEqual(result["status"], "pass", result)
+        ctx = lambda req: (req.context or {}).get("allowed_company_ids")
+        self.assertEqual(ctx(self.fake.calls("sale.order", "create")[0]), [1])
+        self.assertEqual(ctx(self.fake.calls("sale.order", "action_confirm")[0]), [3])
+        self.assertEqual(ctx(self.fake.calls("stock.picking", "search")[0]), [1])
+        self.assertEqual(ctx(self.fake.calls("sale.order", "read")[-1]), [1])
+        self.assertEqual(ctx(self.fake.calls("stock.picking", "read")[-1]), [3])
+        # Without a company nothing sends a context, as before.
+        self.fake.requests.clear()
+        scenario.run(self.c, scenario.load(PASS_FILE))
+        self.assertTrue(all(r.context is None for r in self.fake.requests))
+
+    def test_company_that_does_not_resolve_to_one_id_fails_the_step(self):
+        script_sales(self.fake)
+        data = copy.deepcopy(scenario.load(PASS_FILE))
+        data["steps"][0]["company"] = {"$var": "missing"}
+        result, _, _ = scenario.run(self.c, data)
+        self.assertEqual(result["steps"][1]["status"], "fail")
 
     def test_scrub(self):
         self.assertEqual(scenario.scrub('boom ' + TRACE), "boom [traceback removed]")

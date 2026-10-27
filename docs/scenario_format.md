@@ -54,13 +54,28 @@ them.
 | `preconditions` | no | steps run before `steps`; any failure there is an `error` |
 | `steps` | yes | non-empty list of steps |
 | `evidence` | no | records to read back and, optionally, screenshot |
+| `company` | no | a `{"$ref"}`, `{"$var"}` or `{"$search"}` naming a `res.company`; every call of the scenario runs in that company (see below) |
 
 Unknown keys are rejected, at the top level and in steps, so typos fail at load time instead of being ignored.
+
+### Company context
+
+`ofa_bot` belongs to every company the admin has, and without a context Odoo works in the bot's default company. To
+see the database the way a user who picked another company sees it, name the company:
+
+- top-level `company`: every precondition, step and evidence read runs with `allowed_company_ids: [<id>]` in the
+  context, as `company` does for plan operations;
+- `company` on a step or on an evidence item: overrides the scenario's for that step or read only.
+
+Record rules then apply to that company: a record of another company is not found, and company-dependent values
+(for example a customer's `total_due`) are computed for it. A wizard opened by a `call` step keeps the company and
+adds the action's own context. A `company` that does not resolve to one id fails the step. Use it instead of
+changing `ofa_bot`'s `company_ids`.
 
 ## Steps
 
 Every step has `id` (`^[a-z0-9_]{1,80}$`, unique across preconditions and steps; `requires` is reserved), `action`
-and `model`.
+and `model`, and may have `company` (see Company context).
 
 | Action | Required keys | Optional keys | JSON-2 call |
 |---|---|---|---|
@@ -125,7 +140,7 @@ valid scenario (nothing is run then). The artifacts it writes are described in [
 
 ## Evidence
 
-Each `evidence` item has a unique `label`, `model`, `target` and `fields`, plus optional `screenshot`. After the
+Each `evidence` item has a unique `label`, `model`, `target` and `fields`, plus optional `screenshot` and `company`. After the
 steps, `ofa test` reads those fields back into `records.json`. With `screenshot: true`, the record's URL goes into
 `screenshot_targets.json`. Evidence is collected for passing and failing scenarios, not for scenarios in error.
 Use snake_case labels: they become part of the screenshot file name.

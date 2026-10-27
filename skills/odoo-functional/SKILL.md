@@ -145,7 +145,9 @@ When apply does not exit 0:
 2. Write requirement-specific scenarios (format `ofa.scenario/1`, see `docs/scenario_format.md`) into
    `plans/<slug>/scenarios/`. Check identifiers they use (partners, products, xmlids) with `ofa inspect`.
    Assertions read fields back; they never call helper methods. A scenario only exercises the configuration: it
-   must not change settings to make itself pass.
+   must not change settings to make itself pass. When the plan works in a company other than the main one, set
+   the scenario's top-level `company` to it: without it, reads and company-dependent values (a customer's
+   `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s companies in a scenario.
 3. Run them into the same run:
    `ofa test --plan-dir plans/<slug> --run <run_id> --target <slug> <scenario.json> ...`
    Exit 0 means all pass, 1 means an assertion failed, 4 means a scenario errored (its preconditions failed or the
