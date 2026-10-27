@@ -271,8 +271,12 @@ def check_ops(ops, actual, label):
     """Raise StepFailed naming the first operator in `ops` that `actual` does not satisfy."""
     for op, expected in ops.items():
         if not _cmp(op, actual, expected):
+            hint = ""
+            if op in ("eq", "ne") and _is_int(actual) and isinstance(expected, list) and len(expected) == 1:
+                # T24: a `$var` set by a search holds a list of ids, while a many2one reads as one id.
+                hint = "; the value is a one-id list (a search result) and the field holds one id: use in / not_in"
             raise StepFailed(f"{label}: expected {op} {json.dumps(expected, ensure_ascii=False)}, "
-                             f"got {json.dumps(actual, ensure_ascii=False, default=str)}")
+                             f"got {json.dumps(actual, ensure_ascii=False, default=str)}{hint}")
 
 
 def _check_expect_live(client, expect, vars, count, rows, label_prefix=""):

@@ -130,6 +130,16 @@ class OperatorTest(unittest.TestCase):
         with self.assertRaises(scenario.StepFailed):
             scenario.check_ops({"gt": 0}, False, "f")  # Odoo's empty value never compares
 
+    def test_one_id_list_against_a_many2one_hints_at_in(self):
+        # T24: `lot_id of id 112: expected eq [6], got 6` cost a rerun; the message now names the fix.
+        with self.assertRaises(scenario.StepFailed) as cm:
+            scenario.check_ops({"eq": [6]}, 6, "lot_id")
+        self.assertIn("use in / not_in", str(cm.exception))
+        scenario.check_ops({"in": [6]}, 6, "lot_id")
+        with self.assertRaises(scenario.StepFailed) as cm:
+            scenario.check_ops({"eq": [6, 7]}, 6, "lot_id")
+        self.assertNotIn("use in", str(cm.exception))
+
 
 class RunTest(FakeCase):
     def setUp(self):

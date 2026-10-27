@@ -122,6 +122,10 @@ Any value (in `values`, `domain`, `params`, `target` and `expect`) may contain t
 Before comparing, a many2one read as `[id, name]` becomes `id` and an x2many id list is sorted, so
 `{"eq": {"$ref": "base.mx"}}` works on a `country_id`.
 
+A `$var` set by a `search` step holds a list of ids, even when the search found one record. To compare a many2one
+with it, use `in` (or `not_in`): `{"lot_id": {"in": {"$var": "lot_early"}}}`. With `eq` the check fails, and the
+message says so.
+
 Assertions only read fields back. They never call helper methods: many public methods are not callable over RPC,
 and a read-back check is what a user would see on screen.
 

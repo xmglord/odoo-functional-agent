@@ -159,6 +159,11 @@ When apply does not exit 0:
    Exit 0 means all pass, 1 means an assertion failed, 4 means a scenario errored (its preconditions failed or the
    environment broke). Do not edit a scenario's expectations to turn a fail into a pass; report the fail, find the
    cause, and if the plan is wrong, change it and go back to the review stop.
+4. When the cause is a mistake in how you wrote the scenario (a wrong field, a wrong comparison), fix the scenario
+   and run it again **in full**. Never replace it with a read-only recheck of what the failed run left behind: the
+   fixed file has then never passed. If the records it already created make a full rerun collide, run it on a fresh
+   database: `ofa provision <slug>_2`, `ofa apply` of the same frozen plan, then `ofa test` of every scenario into
+   that apply's run. If that is not possible, say in the report that the fixed scenario never ran.
 
 ## Phase 7: Evidence
 
@@ -179,5 +184,5 @@ Tell the user, in this order:
 5. Anything that needs UI-only configuration, and every uncited decision.
 6. **What you learned**: a short summary of the functional decisions and why each was made, in business terms,
    with the technical names next to them.
-7. Cleanup offer: the demo database stays until the user drops it. Offer `ofa drop <slug>` and run it only if the
-   user says yes.
+7. Cleanup offer: the demo database stays until the user drops it. Offer `ofa drop <slug>` (and `<slug>_2` if
+   you made one) and run it only if the user says yes.
