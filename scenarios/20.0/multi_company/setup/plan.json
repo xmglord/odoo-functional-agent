@@ -1,0 +1,91 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Multi-company scenarios fixture: subsidiary, branch and inter-company sales orders",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "areas": ["multi_company"],
+  "operations": [
+    {
+      "id": "op_010_install_intercompany",
+      "type": "install_modules",
+      "modules": ["account_inter_company_rules", "sale_purchase_inter_company_rules", "sale_purchase_stock_inter_company_rules"],
+      "depends_on": [],
+      "rationale": "The inter-company rules that turn a purchase order to a group company into its sales order are Enterprise modules.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/intercompany_rules.md"],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_020_subsidiary_company",
+      "type": "upsert_record",
+      "model": "res.company",
+      "key": "mc_subsidiary",
+      "values": {"name": "OFA Subsidiary North", "country_id": {"$ref": "base.us"}},
+      "match": [["name", "=", "OFA Subsidiary North"]],
+      "depends_on": [],
+      "rationale": "The subsidiary is its own legal entity, so a root company with its own chart of accounts.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/companies_and_branches.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_subsidiary_branch",
+      "type": "upsert_record",
+      "model": "res.company",
+      "key": "mc_branch",
+      "values": {"name": "OFA North Branch", "parent_id": {"$ref": "__ofa__.mc_subsidiary"}, "country_id": {"$ref": "base.us"}},
+      "match": [["name", "=", "OFA North Branch"]],
+      "depends_on": ["op_020_subsidiary_company"],
+      "rationale": "The regional office belongs to the subsidiary's legal entity, so it is a branch that shares the subsidiary's chart and master data.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/companies_and_branches.md", "knowledge/20.0/multi_company/shared_vs_company_records.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_subsidiary_warehouse",
+      "type": "upsert_record",
+      "model": "stock.warehouse",
+      "key": "mc_subsidiary_warehouse",
+      "company": {"$ref": "__ofa__.mc_subsidiary"},
+      "values": {"name": "OFA North Warehouse", "code": "OFAN", "company_id": {"$ref": "__ofa__.mc_subsidiary"}},
+      "match": [["company_id", "=", {"$ref": "__ofa__.mc_subsidiary"}], ["code", "=", "OFAN"]],
+      "depends_on": ["op_010_install_intercompany", "op_020_subsidiary_company"],
+      "rationale": "A new company gets no warehouse, and the generated sales order needs one to ship from.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/companies_and_branches.md", "knowledge/20.0/multi_company/intercompany_rules.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_subsidiary_generate_so",
+      "type": "set_settings",
+      "company": {"$ref": "__ofa__.mc_subsidiary"},
+      "values": {"intercompany_generate_sales_orders": true},
+      "depends_on": ["op_010_install_intercompany", "op_020_subsidiary_company"],
+      "rationale": "The rule lives on the receiving company: the subsidiary generates a sales order when a group company buys from it.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/intercompany_rules.md", "knowledge/20.0/multi_company/per_company_settings.md"],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_060_subsidiary_only_product",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "mc_subsidiary_only_product",
+      "company": {"$ref": "__ofa__.mc_subsidiary"},
+      "values": {"name": "OFA Subsidiary-only part", "type": "consu", "company_id": {"$ref": "__ofa__.mc_subsidiary"}},
+      "match": [["name", "=", "OFA Subsidiary-only part"]],
+      "depends_on": ["op_020_subsidiary_company"],
+      "rationale": "A product the subsidiary keeps to itself carries its company_id, so other companies do not see it.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/shared_vs_company_records.md"],
+      "edition": "community"
+    },
+    {
+      "id": "op_070_shared_product",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "mc_shared_product",
+      "company": {"$ref": "base.main_company"},
+      "values": {"name": "OFA Shared catalog part", "type": "consu", "company_id": false, "sale_ok": true, "purchase_ok": true, "list_price": 80.0},
+      "match": [["name", "=", "OFA Shared catalog part"], ["company_id", "=", false]],
+      "depends_on": [],
+      "rationale": "Catalog parts traded between companies have no company_id, so every company can buy and sell them.",
+      "knowledge_refs": ["knowledge/20.0/multi_company/shared_vs_company_records.md", "knowledge/20.0/multi_company/intercompany_rules.md"],
+      "edition": "community"
+    }
+  ]
+}

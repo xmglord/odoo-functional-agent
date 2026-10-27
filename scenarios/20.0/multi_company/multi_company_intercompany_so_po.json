@@ -1,0 +1,300 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "multi_company_intercompany_so_po",
+  "area": "multi_company",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "A purchase order confirmed in the main company with the subsidiary's partner as vendor creates a draft sales order in the subsidiary (sale_purchase_inter_company_rules, rule set on the receiving company only), with the PO's product, quantity and price, the main company's partner as customer, the subsidiary's warehouse, and the PO name as customer reference; the PO gets the sales order name as vendor reference. Needs the multi_company setup plan (Enterprise).",
+  "requires": {
+    "modules": [
+      "sale_purchase_inter_company_rules",
+      "sale_purchase_stock_inter_company_rules"
+    ]
+  },
+  "preconditions": [
+    {
+      "id": "p010",
+      "action": "search",
+      "model": "res.company",
+      "domain": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "__ofa__.mc_subsidiary"
+          }
+        ],
+        [
+          "intercompany_generate_sales_orders",
+          "=",
+          true
+        ],
+        [
+          "intercompany_document_state",
+          "=",
+          "draft"
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "p020",
+      "action": "search",
+      "model": "res.company",
+      "domain": [
+        [
+          "id",
+          "in",
+          [
+            {
+              "$ref": "base.main_company"
+            },
+            {
+              "$ref": "__ofa__.mc_branch"
+            }
+          ]
+        ],
+        [
+          "intercompany_generate_sales_orders",
+          "=",
+          false
+        ]
+      ],
+      "expect": {
+        "count": 2
+      }
+    },
+    {
+      "id": "p030",
+      "action": "search",
+      "model": "stock.warehouse",
+      "domain": [
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "__ofa__.mc_subsidiary"
+          }
+        ]
+      ],
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "purchase.order",
+      "values": {
+        "company_id": {
+          "$ref": "base.main_company"
+        },
+        "partner_id": {
+          "$search": {
+            "model": "res.partner",
+            "domain": [
+              [
+                "ref_company_ids",
+                "in",
+                [
+                  {
+                    "$ref": "__ofa__.mc_subsidiary"
+                  }
+                ]
+              ]
+            ]
+          }
+        },
+        "order_line": {
+          "$create": [
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.mc_shared_product"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_qty": 3,
+              "price_unit": 50.0
+            }
+          ]
+        }
+      },
+      "save_as": "po"
+    },
+    {
+      "id": "s020",
+      "action": "call",
+      "model": "purchase.order",
+      "target": {
+        "$var": "po"
+      },
+      "method": "button_confirm"
+    },
+    {
+      "id": "s030",
+      "action": "search",
+      "model": "sale.order",
+      "domain": [
+        [
+          "auto_purchase_order_id",
+          "=",
+          {
+            "$var": "po"
+          }
+        ]
+      ],
+      "save_as": "so",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "company_id": {
+            "eq": {
+              "$ref": "__ofa__.mc_subsidiary"
+            }
+          },
+          "partner_id": {
+            "eq": {
+              "$ref": "base.main_partner"
+            }
+          },
+          "state": {
+            "eq": "draft"
+          },
+          "auto_generated": {
+            "eq": true
+          },
+          "warehouse_id": {
+            "eq": {
+              "$ref": "__ofa__.mc_subsidiary_warehouse"
+            }
+          },
+          "amount_untaxed": {
+            "eq": 150.0
+          },
+          "client_order_ref": {
+            "contains": "P0"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050",
+      "action": "assert",
+      "model": "sale.order.line",
+      "target": {
+        "$search": {
+          "model": "sale.order.line",
+          "domain": [
+            [
+              "order_id",
+              "=",
+              {
+                "$var": "so"
+              }
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "fields": {
+          "product_uom_qty": {
+            "eq": 3.0
+          },
+          "price_unit": {
+            "eq": 50.0
+          },
+          "company_id": {
+            "eq": {
+              "$ref": "__ofa__.mc_subsidiary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "s060",
+      "action": "assert",
+      "model": "purchase.order",
+      "target": {
+        "$var": "po"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "purchase"
+          },
+          "company_id": {
+            "eq": {
+              "$ref": "base.main_company"
+            }
+          },
+          "partner_ref": {
+            "contains": "S0"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "purchase_order",
+      "model": "purchase.order",
+      "target": {
+        "$var": "po"
+      },
+      "fields": [
+        "name",
+        "company_id",
+        "partner_id",
+        "state",
+        "partner_ref",
+        "amount_untaxed"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "generated_sales_order",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "fields": [
+        "name",
+        "company_id",
+        "partner_id",
+        "state",
+        "auto_generated",
+        "auto_purchase_order_id",
+        "client_order_ref",
+        "warehouse_id",
+        "amount_untaxed"
+      ],
+      "screenshot": true
+    }
+  ]
+}
