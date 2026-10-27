@@ -125,3 +125,11 @@ these first.
 - **A Mexican company loads the `mx` chart automatically.** Creating a company with country Mexico triggers the
   localization install and loads the `mx` chart of accounts for it
   (`odoo/addons/account/models/company.py@20.0`, `install_l10n_modules`). Do not plan a separate chart load for it.
+- **Unit of measure on moves and purchase lines is `uom_id`.** `stock.move.product_uom`,
+  `stock.move.line.product_uom_id` and `purchase.order.line.product_uom_id` are now `uom_id`
+  (`odoo/addons/stock/models/stock_move.py@20.0`, `stock_move_line.py`,
+  `odoo/addons/purchase/models/purchase_order_line.py@20.0`). `sale.order.line` and `account.move.line` keep
+  `product_uom_id`.
+- **Product tracking is `store_by`.** `product.template.store_by` (`untracked`, `quantity`, `lot`, `serial`) is the
+  "Tracking" field. `tracking` is now only `lot` or `serial`, with `False` for a product tracked by quantity; the
+  value `'none'` is gone (`odoo/addons/stock/models/product.py@20.0`).
