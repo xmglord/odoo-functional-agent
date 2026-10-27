@@ -1,0 +1,402 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "vantage_quote_history_full_on_po",
+  "area": "sales_crm",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "A draft quotation's price, discount, end date and billing method change; the chatter logs the untaxed-amount and billing-method changes. After the customer PO number is recorded, one full invoice carries the PO and the campaign code.",
+  "company": {
+    "$ref": "base.demo_company_mx"
+  },
+  "requires": {
+    "modules": [
+      "sale_management",
+      "account"
+    ]
+  },
+  "preconditions": [
+    {
+      "id": "p010",
+      "action": "search",
+      "model": "crm.team",
+      "domain": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "__ofa__.campaign_sales_team"
+          }
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "res.partner",
+      "values": {
+        "name": "Cobalt Retail (OFA test)",
+        "is_company": true,
+        "x_customer_type": "direct"
+      },
+      "save_as": "partner"
+    },
+    {
+      "id": "s010_chk",
+      "action": "assert",
+      "model": "res.partner",
+      "target": {
+        "$var": "partner"
+      },
+      "expect": {
+        "fields": {
+          "x_customer_type": {
+            "eq": "direct"
+          }
+        }
+      }
+    },
+    {
+      "id": "s020",
+      "action": "create",
+      "model": "sale.order",
+      "values": {
+        "partner_id": {
+          "$var": "partner"
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "pricelist_id": {
+          "$search": {
+            "model": "product.pricelist",
+            "domain": [
+              [
+                "company_id",
+                "=",
+                {
+                  "$ref": "base.demo_company_mx"
+                }
+              ]
+            ]
+          }
+        },
+        "x_billing_method": "down_payment_50",
+        "order_line": {
+          "$create": [
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.prod_totem"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_uom_qty": 1,
+              "price_unit": 18000.0,
+              "discount": 0.0,
+              "x_start_date": "2027-04-01",
+              "x_end_date": "2027-04-30",
+              "product_no_variant_attribute_value_ids": {
+                "$set": [
+                  {
+                    "$search": {
+                      "model": "product.template.attribute.value",
+                      "domain": [
+                        [
+                          "product_tmpl_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.prod_totem"
+                          }
+                        ],
+                        [
+                          "product_attribute_value_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.venue_green_ridge"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "so"
+    },
+    {
+      "id": "s030",
+      "action": "search",
+      "model": "sale.order.line",
+      "domain": [
+        [
+          "order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ]
+      ],
+      "save_as": "sol",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s040",
+      "action": "write",
+      "model": "sale.order.line",
+      "target": {
+        "$var": "sol"
+      },
+      "values": {
+        "price_unit": 20000.0,
+        "discount": 5.0,
+        "x_end_date": "2027-05-15"
+      }
+    },
+    {
+      "id": "s050",
+      "action": "write",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "values": {
+        "x_billing_method": "full_on_po"
+      }
+    },
+    {
+      "id": "s060",
+      "action": "search",
+      "model": "mail.message",
+      "domain": [
+        [
+          "model",
+          "=",
+          "sale.order"
+        ],
+        [
+          "res_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "message_type",
+          "=",
+          "tracking"
+        ],
+        [
+          "body",
+          "ilike",
+          "Untaxed Amount"
+        ]
+      ],
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    },
+    {
+      "id": "s070",
+      "action": "search",
+      "model": "mail.message",
+      "domain": [
+        [
+          "model",
+          "=",
+          "sale.order"
+        ],
+        [
+          "res_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "message_type",
+          "=",
+          "tracking"
+        ],
+        [
+          "body",
+          "ilike",
+          "Billing Method"
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s080",
+      "action": "write",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "values": {
+        "client_order_ref": "PO-7310"
+      }
+    },
+    {
+      "id": "s090",
+      "action": "call",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "method": "action_confirm"
+    },
+    {
+      "id": "s100",
+      "action": "create",
+      "model": "sale.advance.payment.inv",
+      "values": {
+        "sale_order_ids": {
+          "$set": [
+            {
+              "$var": "so"
+            }
+          ]
+        },
+        "advance_payment_method": "delivered"
+      },
+      "save_as": "wiz"
+    },
+    {
+      "id": "s100_run",
+      "action": "call",
+      "model": "sale.advance.payment.inv",
+      "target": {
+        "$var": "wiz"
+      },
+      "method": "create_invoices"
+    },
+    {
+      "id": "s110",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "invoice_line_ids.sale_line_ids.order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_invoice"
+        ]
+      ],
+      "save_as": "inv",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s120",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "expect": {
+        "fields": {
+          "ref": {
+            "eq": "PO-7310"
+          },
+          "invoice_origin": {
+            "contains": "CMP/"
+          },
+          "amount_untaxed": {
+            "eq": 19000.0
+          },
+          "amount_total": {
+            "eq": 22040.0
+          }
+        }
+      }
+    },
+    {
+      "id": "s130",
+      "action": "call",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s140",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "amount_invoiced": {
+            "eq": 22040.0
+          },
+          "amount_unpaid": {
+            "eq": 0
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "history_order",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "fields": [
+        "name",
+        "client_order_ref",
+        "x_billing_method",
+        "amount_total",
+        "amount_to_invoice",
+        "amount_unpaid"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "full_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "fields": [
+        "name",
+        "invoice_origin",
+        "ref",
+        "amount_total"
+      ],
+      "screenshot": true
+    }
+  ]
+}

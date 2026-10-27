@@ -1,0 +1,732 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "vantage_campaign_down_payment_50",
+  "area": "sales_crm",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "A 3-line campaign (screen in two venues, stand in one, own dates, 10% discount on one line, VAT 16% on top) is confirmed; 50% is invoiced as a down payment to the customer-advance account, then the regular invoice bills the remaining 50%. Campaign code and customer PO appear on both invoices and the order shows invoiced vs pending at each step.",
+  "company": {
+    "$ref": "base.demo_company_mx"
+  },
+  "requires": {
+    "modules": [
+      "sale_management",
+      "account"
+    ]
+  },
+  "preconditions": [
+    {
+      "id": "p010",
+      "action": "search",
+      "model": "crm.team",
+      "domain": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "__ofa__.campaign_sales_team"
+          }
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "res.partner",
+      "values": {
+        "name": "Northwind Corporate (OFA test)",
+        "is_company": true,
+        "x_customer_type": "corporate"
+      },
+      "save_as": "partner"
+    },
+    {
+      "id": "s010_chk",
+      "action": "assert",
+      "model": "res.partner",
+      "target": {
+        "$var": "partner"
+      },
+      "expect": {
+        "fields": {
+          "x_customer_type": {
+            "eq": "corporate"
+          }
+        }
+      }
+    },
+    {
+      "id": "s020",
+      "action": "create",
+      "model": "sale.order",
+      "values": {
+        "partner_id": {
+          "$var": "partner"
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "pricelist_id": {
+          "$search": {
+            "model": "product.pricelist",
+            "domain": [
+              [
+                "company_id",
+                "=",
+                {
+                  "$ref": "base.demo_company_mx"
+                }
+              ]
+            ]
+          }
+        },
+        "x_billing_method": "down_payment_50",
+        "order_line": {
+          "$create": [
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.prod_digital_screen"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_uom_qty": 1,
+              "price_unit": 45000.0,
+              "discount": 0.0,
+              "x_start_date": "2027-01-01",
+              "x_end_date": "2027-06-30",
+              "product_no_variant_attribute_value_ids": {
+                "$set": [
+                  {
+                    "$search": {
+                      "model": "product.template.attribute.value",
+                      "domain": [
+                        [
+                          "product_tmpl_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.prod_digital_screen"
+                          }
+                        ],
+                        [
+                          "product_attribute_value_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.venue_blue_bay"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.prod_digital_screen"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_uom_qty": 1,
+              "price_unit": 45000.0,
+              "discount": 10.0,
+              "x_start_date": "2027-01-01",
+              "x_end_date": "2027-06-30",
+              "product_no_variant_attribute_value_ids": {
+                "$set": [
+                  {
+                    "$search": {
+                      "model": "product.template.attribute.value",
+                      "domain": [
+                        [
+                          "product_tmpl_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.prod_digital_screen"
+                          }
+                        ],
+                        [
+                          "product_attribute_value_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.venue_green_ridge"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.prod_stand"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_uom_qty": 1,
+              "price_unit": 30000.0,
+              "discount": 0.0,
+              "x_start_date": "2027-02-01",
+              "x_end_date": "2027-03-31",
+              "product_no_variant_attribute_value_ids": {
+                "$set": [
+                  {
+                    "$search": {
+                      "model": "product.template.attribute.value",
+                      "domain": [
+                        [
+                          "product_tmpl_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.prod_stand"
+                          }
+                        ],
+                        [
+                          "product_attribute_value_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.venue_blue_bay"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "client_order_ref": "PO-4471"
+      },
+      "save_as": "so"
+    },
+    {
+      "id": "s030",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "name": {
+            "contains": "CMP/"
+          },
+          "amount_untaxed": {
+            "eq": 115500.0
+          },
+          "amount_total": {
+            "eq": 133980.0
+          },
+          "x_billing_method": {
+            "eq": "down_payment_50"
+          },
+          "client_order_ref": {
+            "eq": "PO-4471"
+          }
+        }
+      }
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "sale.order.line",
+      "target": {
+        "$search": {
+          "model": "sale.order.line",
+          "domain": [
+            [
+              "order_id",
+              "=",
+              {
+                "$var": "so"
+              }
+            ],
+            [
+              "discount",
+              "=",
+              10.0
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "fields": {
+          "price_subtotal": {
+            "eq": 40500.0
+          },
+          "x_start_date": {
+            "eq": "2027-01-01"
+          },
+          "x_end_date": {
+            "eq": "2027-06-30"
+          },
+          "tax_ids": {
+            "eq": [
+              {
+                "$ref": "account.4_tax12"
+              }
+            ]
+          },
+          "name": {
+            "contains": "Green Ridge Stadium"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050",
+      "action": "call",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "method": "action_confirm"
+    },
+    {
+      "id": "s060",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "sale"
+          },
+          "name": {
+            "contains": "CMP/"
+          },
+          "amount_invoiced": {
+            "eq": 0
+          },
+          "amount_unpaid": {
+            "eq": 133980.0
+          }
+        }
+      }
+    },
+    {
+      "id": "s070",
+      "action": "create",
+      "model": "sale.advance.payment.inv",
+      "values": {
+        "sale_order_ids": {
+          "$set": [
+            {
+              "$var": "so"
+            }
+          ]
+        },
+        "advance_payment_method": "percentage",
+        "amount": 50
+      },
+      "save_as": "wiz"
+    },
+    {
+      "id": "s070_run",
+      "action": "call",
+      "model": "sale.advance.payment.inv",
+      "target": {
+        "$var": "wiz"
+      },
+      "method": "create_invoices"
+    },
+    {
+      "id": "s080",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "invoice_line_ids.sale_line_ids.order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_invoice"
+        ]
+      ],
+      "save_as": "inv_dp",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s090",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_dp"
+      },
+      "expect": {
+        "fields": {
+          "amount_untaxed": {
+            "eq": 57750.0
+          },
+          "amount_total": {
+            "eq": 66990.0
+          },
+          "invoice_origin": {
+            "contains": "CMP/"
+          },
+          "ref": {
+            "eq": "PO-4471"
+          },
+          "partner_id": {
+            "eq": {
+              "$var": "partner"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "s100",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "in",
+          {
+            "$var": "inv_dp"
+          }
+        ],
+        [
+          "account_id",
+          "=",
+          {
+            "$ref": "account.4_cuenta206_01"
+          }
+        ]
+      ],
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    },
+    {
+      "id": "s110",
+      "action": "call",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_dp"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s120",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "amount_invoiced": {
+            "eq": 66990.0
+          },
+          "amount_unpaid": {
+            "eq": 66990.0
+          }
+        }
+      }
+    },
+    {
+      "id": "s130",
+      "action": "create",
+      "model": "sale.advance.payment.inv",
+      "values": {
+        "sale_order_ids": {
+          "$set": [
+            {
+              "$var": "so"
+            }
+          ]
+        },
+        "advance_payment_method": "delivered"
+      },
+      "save_as": "wiz2"
+    },
+    {
+      "id": "s130_run",
+      "action": "call",
+      "model": "sale.advance.payment.inv",
+      "target": {
+        "$var": "wiz2"
+      },
+      "method": "create_invoices"
+    },
+    {
+      "id": "s140",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "invoice_line_ids.sale_line_ids.order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_invoice"
+        ],
+        [
+          "id",
+          "not in",
+          {
+            "$var": "inv_dp"
+          }
+        ]
+      ],
+      "save_as": "inv_final",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s150",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_final"
+      },
+      "expect": {
+        "fields": {
+          "amount_untaxed": {
+            "eq": 57750.0
+          },
+          "amount_total": {
+            "eq": 66990.0
+          },
+          "invoice_origin": {
+            "contains": "CMP/"
+          },
+          "ref": {
+            "eq": "PO-4471"
+          }
+        }
+      }
+    },
+    {
+      "id": "s160",
+      "action": "call",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_final"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s170",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "amount_invoiced": {
+            "eq": 133980.0
+          },
+          "amount_unpaid": {
+            "eq": 0
+          },
+          "invoice_status": {
+            "eq": "invoiced"
+          }
+        }
+      }
+    },
+    {
+      "id": "s180",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "partner_id",
+          "=",
+          {
+            "$var": "partner"
+          }
+        ],
+        [
+          "account_id.account_type",
+          "=",
+          "asset_receivable"
+        ],
+        [
+          "parent_state",
+          "=",
+          "posted"
+        ],
+        [
+          "reconciled",
+          "=",
+          false
+        ],
+        [
+          "date_maturity",
+          "!=",
+          false
+        ]
+      ],
+      "expect": {
+        "count": 2
+      }
+    },
+    {
+      "id": "s190",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$search": {
+          "model": "account.move",
+          "domain": [
+            [
+              "invoice_line_ids.sale_line_ids.order_id",
+              "=",
+              {
+                "$var": "so"
+              }
+            ],
+            [
+              "move_type",
+              "=",
+              "out_invoice"
+            ],
+            [
+              "state",
+              "=",
+              "posted"
+            ],
+            [
+              "id",
+              "=",
+              {
+                "$var": "inv_final"
+              }
+            ]
+          ]
+        }
+      },
+      "expect": {
+        "fields": {
+          "amount_residual": {
+            "eq": 66990.0
+          },
+          "payment_state": {
+            "eq": "not_paid"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "campaign_order",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "fields": [
+        "name",
+        "client_order_ref",
+        "x_billing_method",
+        "amount_total",
+        "amount_invoiced",
+        "amount_to_invoice",
+        "amount_unpaid",
+        "invoice_status"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "down_payment_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_dp"
+      },
+      "fields": [
+        "name",
+        "invoice_origin",
+        "ref",
+        "amount_total",
+        "invoice_date_due",
+        "amount_residual"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "final_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "inv_final"
+      },
+      "fields": [
+        "name",
+        "invoice_origin",
+        "ref",
+        "amount_total",
+        "invoice_date_due",
+        "amount_residual"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "customer_balance",
+      "model": "res.partner",
+      "target": {
+        "$var": "partner"
+      },
+      "fields": [
+        "name",
+        "x_customer_type",
+        "total_due",
+        "total_overdue"
+      ],
+      "screenshot": false
+    }
+  ]
+}

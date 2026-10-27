@@ -1,0 +1,397 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "vantage_opportunity_to_won",
+  "area": "sales_crm",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "An agency customer's opportunity carries the brief in team properties and an attached document, moves through Prospect, Brief Received, Proposal Sent and Negotiation, gets a CMP/ quotation linked to it, and is won.",
+  "company": {
+    "$ref": "base.demo_company_mx"
+  },
+  "requires": {
+    "modules": [
+      "crm",
+      "sale_crm",
+      "sale_management"
+    ]
+  },
+  "preconditions": [
+    {
+      "id": "p010",
+      "action": "search",
+      "model": "crm.team",
+      "domain": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "__ofa__.campaign_sales_team"
+          }
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "res.partner",
+      "values": {
+        "name": "Aurora Media Agency (OFA test)",
+        "is_company": true,
+        "x_customer_type": "agency"
+      },
+      "save_as": "partner"
+    },
+    {
+      "id": "s010_chk",
+      "action": "assert",
+      "model": "res.partner",
+      "target": {
+        "$var": "partner"
+      },
+      "expect": {
+        "fields": {
+          "x_customer_type": {
+            "eq": "agency"
+          }
+        }
+      }
+    },
+    {
+      "id": "s020",
+      "action": "create",
+      "model": "crm.lead",
+      "values": {
+        "name": "Aurora spring campaign",
+        "type": "opportunity",
+        "partner_id": {
+          "$var": "partner"
+        },
+        "team_id": {
+          "$ref": "__ofa__.campaign_sales_team"
+        },
+        "expected_revenue": 150000.0,
+        "stage_id": {
+          "$ref": "__ofa__.stage_prospect"
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "lead_properties": {
+          "media": [
+            "digital_screen",
+            "stand"
+          ],
+          "venues": "Blue Bay Convention Center; Green Ridge Stadium",
+          "campaign_start": "2026-12-01",
+          "campaign_end": "2027-05-31"
+        }
+      },
+      "save_as": "lead"
+    },
+    {
+      "id": "s030",
+      "action": "create",
+      "model": "ir.attachment",
+      "values": {
+        "name": "brief.txt",
+        "res_model": "crm.lead",
+        "res_id": {
+          "$var": "lead"
+        },
+        "datas": "QnJpZWYgZm9yIEF1cm9yYQ=="
+      },
+      "save_as": "att"
+    },
+    {
+      "id": "s040",
+      "action": "search",
+      "model": "ir.attachment",
+      "domain": [
+        [
+          "res_model",
+          "=",
+          "crm.lead"
+        ],
+        [
+          "res_id",
+          "=",
+          {
+            "$var": "lead"
+          }
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s050",
+      "action": "write",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "values": {
+        "stage_id": {
+          "$ref": "__ofa__.stage_brief_received"
+        }
+      }
+    },
+    {
+      "id": "s060",
+      "action": "write",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "values": {
+        "stage_id": {
+          "$ref": "__ofa__.stage_proposal_sent"
+        }
+      }
+    },
+    {
+      "id": "s070",
+      "action": "assert",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "expect": {
+        "fields": {
+          "stage_id": {
+            "eq": {
+              "$ref": "__ofa__.stage_proposal_sent"
+            }
+          },
+          "type": {
+            "eq": "opportunity"
+          },
+          "expected_revenue": {
+            "eq": 150000.0
+          },
+          "team_id": {
+            "eq": {
+              "$ref": "__ofa__.campaign_sales_team"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "s080",
+      "action": "create",
+      "model": "sale.order",
+      "values": {
+        "partner_id": {
+          "$var": "partner"
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "pricelist_id": {
+          "$search": {
+            "model": "product.pricelist",
+            "domain": [
+              [
+                "company_id",
+                "=",
+                {
+                  "$ref": "base.demo_company_mx"
+                }
+              ]
+            ]
+          }
+        },
+        "x_billing_method": "full_on_po",
+        "order_line": {
+          "$create": [
+            {
+              "product_id": {
+                "$search": {
+                  "model": "product.product",
+                  "domain": [
+                    [
+                      "product_tmpl_id",
+                      "=",
+                      {
+                        "$ref": "__ofa__.prod_digital_screen"
+                      }
+                    ]
+                  ]
+                }
+              },
+              "product_uom_qty": 1,
+              "price_unit": 45000.0,
+              "discount": 0.0,
+              "x_start_date": "2026-12-01",
+              "x_end_date": "2027-05-31",
+              "product_no_variant_attribute_value_ids": {
+                "$set": [
+                  {
+                    "$search": {
+                      "model": "product.template.attribute.value",
+                      "domain": [
+                        [
+                          "product_tmpl_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.prod_digital_screen"
+                          }
+                        ],
+                        [
+                          "product_attribute_value_id",
+                          "=",
+                          {
+                            "$ref": "__ofa__.venue_blue_bay"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "opportunity_id": {
+          "$var": "lead"
+        },
+        "team_id": {
+          "$ref": "__ofa__.campaign_sales_team"
+        }
+      },
+      "save_as": "so"
+    },
+    {
+      "id": "s090",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "name": {
+            "contains": "CMP/"
+          },
+          "opportunity_id": {
+            "eq": {
+              "$var": "lead"
+            }
+          },
+          "state": {
+            "eq": "draft"
+          }
+        }
+      }
+    },
+    {
+      "id": "s100",
+      "action": "write",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "values": {
+        "stage_id": {
+          "$ref": "__ofa__.stage_negotiation"
+        }
+      }
+    },
+    {
+      "id": "s110",
+      "action": "call",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "method": "action_confirm"
+    },
+    {
+      "id": "s120",
+      "action": "call",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "method": "action_set_won"
+    },
+    {
+      "id": "s130",
+      "action": "assert",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "expect": {
+        "fields": {
+          "stage_id": {
+            "eq": {
+              "$ref": "__ofa__.stage_won"
+            }
+          },
+          "won_status": {
+            "eq": "won"
+          },
+          "probability": {
+            "eq": 100
+          }
+        }
+      }
+    },
+    {
+      "id": "s140",
+      "action": "assert",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "sale"
+          },
+          "name": {
+            "contains": "CMP/"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "won_opportunity",
+      "model": "crm.lead",
+      "target": {
+        "$var": "lead"
+      },
+      "fields": [
+        "name",
+        "stage_id",
+        "won_status",
+        "expected_revenue",
+        "lead_properties",
+        "partner_id"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "customer_type",
+      "model": "res.partner",
+      "target": {
+        "$var": "partner"
+      },
+      "fields": [
+        "name",
+        "x_customer_type"
+      ],
+      "screenshot": true
+    }
+  ]
+}

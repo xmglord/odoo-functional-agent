@@ -1,0 +1,1422 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Vantage Venue Media: campaign sales cycle from opportunity to payment",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "areas": [
+    "sales_crm",
+    "accounting",
+    "l10n_mx"
+  ],
+  "operations": [
+    {
+      "id": "op_010_install_apps",
+      "type": "install_modules",
+      "modules": [
+        "sale_management",
+        "crm",
+        "sale_crm",
+        "account_followup"
+      ],
+      "rationale": "CRM, Sales, the CRM-Sales link and customer follow-up are the apps the cycle runs on.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "enterprise",
+      "depends_on": []
+    },
+    {
+      "id": "op_020_sales_settings",
+      "type": "set_settings",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "group_discount_per_so_line": true,
+        "group_product_variant": true,
+        "downpayment_account_id": {
+          "$ref": "account.4_cuenta206_01"
+        }
+      },
+      "rationale": "Per-line discounts, venue attribute on products, and down payments booked as customer advances.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/discounts.md",
+        "knowledge/20.0/sales_crm/down_payments.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_campaign_sequence",
+      "type": "upsert_record",
+      "model": "ir.sequence",
+      "key": "campaign_code_sequence",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Campaign code (Vantage)",
+        "code": "sale.order",
+        "prefix": "CMP/%(year)s/",
+        "padding": 4,
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "implementation": "standard",
+        "use_date_range": false
+      },
+      "match": [
+        [
+          "code",
+          "=",
+          "sale.order"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Each quotation gets a unique CMP/<year>/nnnn campaign code from a Mexican-company sale.order sequence.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_040_campaign_team",
+      "type": "upsert_record",
+      "model": "crm.team",
+      "key": "campaign_sales_team",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Campaign Sales",
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "use_leads": false,
+        "use_opportunities": true,
+        "lead_properties_definition": [
+          {
+            "name": "media",
+            "tags": [
+              [
+                "digital_screen",
+                "Digital screen",
+                1
+              ],
+              [
+                "totem",
+                "Totem",
+                2
+              ],
+              [
+                "stand",
+                "Stand",
+                3
+              ],
+              [
+                "wifi",
+                "Sponsored Wi-Fi",
+                4
+              ],
+              [
+                "printed",
+                "Printed media",
+                5
+              ]
+            ],
+            "type": "tags",
+            "string": "Media"
+          },
+          {
+            "name": "venues",
+            "type": "char",
+            "string": "Venues"
+          },
+          {
+            "name": "campaign_start",
+            "type": "date",
+            "string": "Campaign start"
+          },
+          {
+            "name": "campaign_end",
+            "type": "date",
+            "string": "Campaign end"
+          }
+        ]
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Campaign Sales"
+        ]
+      ],
+      "rationale": "A sales team for campaigns whose lead properties hold the brief: media, venues, start and end dates.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/sales_teams.md",
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_stage_prospect",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "stage_prospect",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Prospect",
+        "sequence": 1,
+        "is_won": false
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "crm.stage_lead1"
+          }
+        ]
+      ],
+      "rationale": "Pipeline stage 'Prospect' (sequence 1).",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_060_stage_brief",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "stage_brief_received",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Brief Received",
+        "sequence": 2,
+        "is_won": false
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "crm.stage_lead2"
+          }
+        ]
+      ],
+      "rationale": "Pipeline stage 'Brief Received' (sequence 2).",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_070_stage_proposal",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "stage_proposal_sent",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Proposal Sent",
+        "sequence": 3,
+        "is_won": false
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "crm.stage_lead3"
+          }
+        ]
+      ],
+      "rationale": "Pipeline stage 'Proposal Sent' (sequence 3).",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_080_stage_negotiation",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "stage_negotiation",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Negotiation",
+        "sequence": 4,
+        "is_won": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Negotiation"
+        ]
+      ],
+      "rationale": "Pipeline stage 'Negotiation' (sequence 4).",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_090_stage_won",
+      "type": "upsert_record",
+      "model": "crm.stage",
+      "key": "stage_won",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Won",
+        "sequence": 70,
+        "is_won": true
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "crm.stage_lead4"
+          }
+        ]
+      ],
+      "rationale": "Pipeline stage 'Won' (sequence 70).",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/leads_opportunities_pipeline.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_100_field_customer_type",
+      "type": "upsert_record",
+      "model": "ir.model.fields",
+      "key": "field_partner_customer_type",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "x_customer_type",
+        "model_id": {
+          "$ref": "base.model_res_partner"
+        },
+        "ttype": "selection",
+        "field_description": "Customer Type",
+        "state": "manual",
+        "copied": true
+      },
+      "match": [
+        [
+          "model",
+          "=",
+          "res.partner"
+        ],
+        [
+          "name",
+          "=",
+          "x_customer_type"
+        ]
+      ],
+      "rationale": "Custom field: exclusive customer type (direct, agency, business partner, corporate).",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_100_field_customer_type_opt_direct",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_partner_customer_type_direct",
+      "depends_on": [
+        "op_100_field_customer_type"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_partner_customer_type"
+        },
+        "value": "direct",
+        "name": "Direct",
+        "sequence": 10
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_partner_customer_type"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "direct"
+        ]
+      ],
+      "rationale": "Option 'Direct' of x_customer_type.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_100_field_customer_type_opt_agency",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_partner_customer_type_agency",
+      "depends_on": [
+        "op_100_field_customer_type"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_partner_customer_type"
+        },
+        "value": "agency",
+        "name": "Agency",
+        "sequence": 20
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_partner_customer_type"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "agency"
+        ]
+      ],
+      "rationale": "Option 'Agency' of x_customer_type.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_100_field_customer_type_opt_business_partner",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_partner_customer_type_business_partner",
+      "depends_on": [
+        "op_100_field_customer_type"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_partner_customer_type"
+        },
+        "value": "business_partner",
+        "name": "Business partner",
+        "sequence": 30
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_partner_customer_type"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "business_partner"
+        ]
+      ],
+      "rationale": "Option 'Business partner' of x_customer_type.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_100_field_customer_type_opt_corporate",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_partner_customer_type_corporate",
+      "depends_on": [
+        "op_100_field_customer_type"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_partner_customer_type"
+        },
+        "value": "corporate",
+        "name": "Corporate",
+        "sequence": 40
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_partner_customer_type"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "corporate"
+        ]
+      ],
+      "rationale": "Option 'Corporate' of x_customer_type.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_110_view_partner_type",
+      "type": "upsert_record",
+      "model": "ir.ui.view",
+      "key": "view_partner_customer_type",
+      "depends_on": [
+        "op_100_field_customer_type"
+      ],
+      "values": {
+        "name": "res.partner.form.vantage.customer_type",
+        "model": "res.partner",
+        "type": "form",
+        "mode": "extension",
+        "priority": 99,
+        "inherit_id": {
+          "$ref": "base.view_partner_form"
+        },
+        "arch": "<field name=\"category_id\" position=\"after\"><field name=\"x_customer_type\"/></field>"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "res.partner.form.vantage.customer_type"
+        ]
+      ],
+      "rationale": "Show Customer Type next to the tags on the contact form.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_120_field_billing_method",
+      "type": "upsert_record",
+      "model": "ir.model.fields",
+      "key": "field_order_billing_method",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "x_billing_method",
+        "model_id": {
+          "$ref": "sale.model_sale_order"
+        },
+        "ttype": "selection",
+        "field_description": "Billing Method",
+        "state": "manual",
+        "copied": true,
+        "tracking": 10
+      },
+      "match": [
+        [
+          "model",
+          "=",
+          "sale.order"
+        ],
+        [
+          "name",
+          "=",
+          "x_billing_method"
+        ]
+      ],
+      "rationale": "Custom field: the invoicing method chosen per campaign, tracked in the chatter.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_120_field_billing_method_opt_down_payment_50",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_order_billing_method_down_payment_50",
+      "depends_on": [
+        "op_120_field_billing_method"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_order_billing_method"
+        },
+        "value": "down_payment_50",
+        "name": "50% down payment + 50% before start",
+        "sequence": 10
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_order_billing_method"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "down_payment_50"
+        ]
+      ],
+      "rationale": "Option '50% down payment + 50% before start' of x_billing_method.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_120_field_billing_method_opt_partial",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_order_billing_method_partial",
+      "depends_on": [
+        "op_120_field_billing_method"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_order_billing_method"
+        },
+        "value": "partial",
+        "name": "Partial invoices (percentage or milestone)",
+        "sequence": 20
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_order_billing_method"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "partial"
+        ]
+      ],
+      "rationale": "Option 'Partial invoices (percentage or milestone)' of x_billing_method.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_120_field_billing_method_opt_full_on_po",
+      "type": "upsert_record",
+      "model": "ir.model.fields.selection",
+      "key": "field_order_billing_method_full_on_po",
+      "depends_on": [
+        "op_120_field_billing_method"
+      ],
+      "values": {
+        "field_id": {
+          "$ref": "__ofa__.field_order_billing_method"
+        },
+        "value": "full_on_po",
+        "name": "Full invoice on customer PO",
+        "sequence": 30
+      },
+      "match": [
+        [
+          "field_id",
+          "=",
+          {
+            "$ref": "__ofa__.field_order_billing_method"
+          }
+        ],
+        [
+          "value",
+          "=",
+          "full_on_po"
+        ]
+      ],
+      "rationale": "Option 'Full invoice on customer PO' of x_billing_method.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_130_field_line_start",
+      "type": "upsert_record",
+      "model": "ir.model.fields",
+      "key": "field_line_start_date",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "x_start_date",
+        "model_id": {
+          "$ref": "sale.model_sale_order_line"
+        },
+        "ttype": "date",
+        "field_description": "Start Date",
+        "state": "manual",
+        "copied": true
+      },
+      "match": [
+        [
+          "model",
+          "=",
+          "sale.order.line"
+        ],
+        [
+          "name",
+          "=",
+          "x_start_date"
+        ]
+      ],
+      "rationale": "Custom field: start date of the campaign period on each order line.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_131_field_line_end",
+      "type": "upsert_record",
+      "model": "ir.model.fields",
+      "key": "field_line_end_date",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "x_end_date",
+        "model_id": {
+          "$ref": "sale.model_sale_order_line"
+        },
+        "ttype": "date",
+        "field_description": "End Date",
+        "state": "manual",
+        "copied": true
+      },
+      "match": [
+        [
+          "model",
+          "=",
+          "sale.order.line"
+        ],
+        [
+          "name",
+          "=",
+          "x_end_date"
+        ]
+      ],
+      "rationale": "Custom field: end date of the campaign period on each order line.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_140_view_order_form",
+      "type": "upsert_record",
+      "model": "ir.ui.view",
+      "key": "view_order_form_campaign",
+      "depends_on": [
+        "op_120_field_billing_method",
+        "op_130_field_line_start",
+        "op_131_field_line_end"
+      ],
+      "values": {
+        "name": "sale.order.form.vantage.campaign",
+        "model": "sale.order",
+        "type": "form",
+        "mode": "extension",
+        "priority": 99,
+        "inherit_id": {
+          "$ref": "sale.view_order_form"
+        },
+        "arch": "<data><xpath expr=\"//field[@name='payment_term_id']\" position=\"after\"><field name=\"x_billing_method\" readonly=\"state == 'cancel'\"/><field name=\"amount_invoiced\" invisible=\"state != 'sale'\"/><field name=\"amount_unpaid\" invisible=\"state != 'sale'\"/></xpath><xpath expr=\"//field[@name='order_line']/list/field[@name='discount']\" position=\"before\"><field name=\"x_start_date\" optional=\"show\"/><field name=\"x_end_date\" optional=\"show\"/></xpath></data>"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "sale.order.form.vantage.campaign"
+        ]
+      ],
+      "rationale": "Show billing method, invoiced and pending amounts on the order, and start/end dates on its lines.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/down_payments.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_150_view_order_list",
+      "type": "upsert_record",
+      "model": "ir.ui.view",
+      "key": "view_order_list_balance",
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "sale.order.list.vantage.balance",
+        "model": "sale.order",
+        "type": "list",
+        "mode": "extension",
+        "priority": 99,
+        "inherit_id": {
+          "$ref": "sale.sale_order_tree"
+        },
+        "arch": "<field name=\"amount_total\" position=\"after\"><field name=\"amount_invoiced\" optional=\"show\" sum=\"Invoiced\"/><field name=\"amount_unpaid\" optional=\"show\" sum=\"Pending\"/></field>"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "sale.order.list.vantage.balance"
+        ]
+      ],
+      "rationale": "Show invoiced and pending amounts in the quotation and order lists.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_160_attr_venue",
+      "type": "upsert_record",
+      "model": "product.attribute",
+      "key": "attr_venue",
+      "depends_on": [
+        "op_020_sales_settings"
+      ],
+      "values": {
+        "name": "Venue",
+        "create_variant": "no_variant",
+        "display_type": "select"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Venue"
+        ]
+      ],
+      "rationale": "Venue as a no-variant attribute: chosen per line, printed in the line description, no variant explosion.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_161_venue_bay",
+      "type": "upsert_record",
+      "model": "product.attribute.value",
+      "key": "venue_blue_bay",
+      "depends_on": [
+        "op_160_attr_venue"
+      ],
+      "values": {
+        "name": "Blue Bay Convention Center",
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        }
+      },
+      "match": [
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ],
+        [
+          "name",
+          "=",
+          "Blue Bay Convention Center"
+        ]
+      ],
+      "rationale": "Venue 'Blue Bay Convention Center' (fictional).",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_162_venue_ridge",
+      "type": "upsert_record",
+      "model": "product.attribute.value",
+      "key": "venue_green_ridge",
+      "depends_on": [
+        "op_160_attr_venue"
+      ],
+      "values": {
+        "name": "Green Ridge Stadium",
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        }
+      },
+      "match": [
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ],
+        [
+          "name",
+          "=",
+          "Green Ridge Stadium"
+        ]
+      ],
+      "rationale": "Venue 'Green Ridge Stadium' (fictional).",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_163_venue_north",
+      "type": "upsert_record",
+      "model": "product.attribute.value",
+      "key": "venue_north_expo",
+      "depends_on": [
+        "op_160_attr_venue"
+      ],
+      "values": {
+        "name": "North Expo Hall",
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        }
+      },
+      "match": [
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ],
+        [
+          "name",
+          "=",
+          "North Expo Hall"
+        ]
+      ],
+      "rationale": "Venue 'North Expo Hall' (fictional).",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_170_prod_screen",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_digital_screen",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Digital Screen",
+        "type": "service",
+        "invoice_policy": "order",
+        "sale_ok": true,
+        "list_price": 45000.0,
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax12"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Digital Screen"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Medium 'Digital Screen': service sold per campaign period, invoiced on ordered quantity, VAT 16% on top.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/invoicing_policy.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_180_venues_digital_screen",
+      "type": "upsert_record",
+      "model": "product.template.attribute.line",
+      "key": "venues_digital_screen",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_170_prod_screen",
+        "op_161_venue_bay",
+        "op_162_venue_ridge",
+        "op_163_venue_north"
+      ],
+      "values": {
+        "product_tmpl_id": {
+          "$ref": "__ofa__.prod_digital_screen"
+        },
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        },
+        "value_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.venue_blue_bay"
+            },
+            {
+              "$ref": "__ofa__.venue_green_ridge"
+            },
+            {
+              "$ref": "__ofa__.venue_north_expo"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "product_tmpl_id",
+          "=",
+          {
+            "$ref": "__ofa__.prod_digital_screen"
+          }
+        ],
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ]
+      ],
+      "rationale": "'Digital Screen' can be sold in any of the three venues.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_171_prod_totem",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_totem",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Totem",
+        "type": "service",
+        "invoice_policy": "order",
+        "sale_ok": true,
+        "list_price": 18000.0,
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax12"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Totem"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Medium 'Totem': service sold per campaign period, invoiced on ordered quantity, VAT 16% on top.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/invoicing_policy.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_181_venues_totem",
+      "type": "upsert_record",
+      "model": "product.template.attribute.line",
+      "key": "venues_totem",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_171_prod_totem",
+        "op_161_venue_bay",
+        "op_162_venue_ridge",
+        "op_163_venue_north"
+      ],
+      "values": {
+        "product_tmpl_id": {
+          "$ref": "__ofa__.prod_totem"
+        },
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        },
+        "value_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.venue_blue_bay"
+            },
+            {
+              "$ref": "__ofa__.venue_green_ridge"
+            },
+            {
+              "$ref": "__ofa__.venue_north_expo"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "product_tmpl_id",
+          "=",
+          {
+            "$ref": "__ofa__.prod_totem"
+          }
+        ],
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ]
+      ],
+      "rationale": "'Totem' can be sold in any of the three venues.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_172_prod_stand",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_stand",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Stand",
+        "type": "service",
+        "invoice_policy": "order",
+        "sale_ok": true,
+        "list_price": 30000.0,
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax12"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Stand"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Medium 'Stand': service sold per campaign period, invoiced on ordered quantity, VAT 16% on top.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/invoicing_policy.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_182_venues_stand",
+      "type": "upsert_record",
+      "model": "product.template.attribute.line",
+      "key": "venues_stand",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_172_prod_stand",
+        "op_161_venue_bay",
+        "op_162_venue_ridge",
+        "op_163_venue_north"
+      ],
+      "values": {
+        "product_tmpl_id": {
+          "$ref": "__ofa__.prod_stand"
+        },
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        },
+        "value_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.venue_blue_bay"
+            },
+            {
+              "$ref": "__ofa__.venue_green_ridge"
+            },
+            {
+              "$ref": "__ofa__.venue_north_expo"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "product_tmpl_id",
+          "=",
+          {
+            "$ref": "__ofa__.prod_stand"
+          }
+        ],
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ]
+      ],
+      "rationale": "'Stand' can be sold in any of the three venues.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_173_prod_wifi",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_sponsored_wifi",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Sponsored Wi-Fi",
+        "type": "service",
+        "invoice_policy": "order",
+        "sale_ok": true,
+        "list_price": 25000.0,
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax12"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Sponsored Wi-Fi"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Medium 'Sponsored Wi-Fi': service sold per campaign period, invoiced on ordered quantity, VAT 16% on top.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/invoicing_policy.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_183_venues_sponsored_wifi",
+      "type": "upsert_record",
+      "model": "product.template.attribute.line",
+      "key": "venues_sponsored_wifi",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_173_prod_wifi",
+        "op_161_venue_bay",
+        "op_162_venue_ridge",
+        "op_163_venue_north"
+      ],
+      "values": {
+        "product_tmpl_id": {
+          "$ref": "__ofa__.prod_sponsored_wifi"
+        },
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        },
+        "value_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.venue_blue_bay"
+            },
+            {
+              "$ref": "__ofa__.venue_green_ridge"
+            },
+            {
+              "$ref": "__ofa__.venue_north_expo"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "product_tmpl_id",
+          "=",
+          {
+            "$ref": "__ofa__.prod_sponsored_wifi"
+          }
+        ],
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ]
+      ],
+      "rationale": "'Sponsored Wi-Fi' can be sold in any of the three venues.",
+      "edition": "community",
+      "knowledge_refs": []
+    },
+    {
+      "id": "op_174_prod_printed",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_printed_media",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_010_install_apps"
+      ],
+      "values": {
+        "name": "Printed Media",
+        "type": "service",
+        "invoice_policy": "order",
+        "sale_ok": true,
+        "list_price": 12000.0,
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax12"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Printed Media"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "rationale": "Medium 'Printed Media': service sold per campaign period, invoiced on ordered quantity, VAT 16% on top.",
+      "knowledge_refs": [
+        "knowledge/20.0/sales_crm/invoicing_policy.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_184_venues_printed_media",
+      "type": "upsert_record",
+      "model": "product.template.attribute.line",
+      "key": "venues_printed_media",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "depends_on": [
+        "op_174_prod_printed",
+        "op_161_venue_bay",
+        "op_162_venue_ridge",
+        "op_163_venue_north"
+      ],
+      "values": {
+        "product_tmpl_id": {
+          "$ref": "__ofa__.prod_printed_media"
+        },
+        "attribute_id": {
+          "$ref": "__ofa__.attr_venue"
+        },
+        "value_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.venue_blue_bay"
+            },
+            {
+              "$ref": "__ofa__.venue_green_ridge"
+            },
+            {
+              "$ref": "__ofa__.venue_north_expo"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "product_tmpl_id",
+          "=",
+          {
+            "$ref": "__ofa__.prod_printed_media"
+          }
+        ],
+        [
+          "attribute_id",
+          "=",
+          {
+            "$ref": "__ofa__.attr_venue"
+          }
+        ]
+      ],
+      "rationale": "'Printed Media' can be sold in any of the three venues.",
+      "edition": "community",
+      "knowledge_refs": []
+    }
+  ]
+}
