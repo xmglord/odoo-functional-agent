@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import ofa
-from ofa import refs
+from ofa import identities, refs
 from ofa.errors import UsageError, ValidationError
 
 FORMAT = "ofa.plan/1"
@@ -33,6 +33,7 @@ RULE_CODES = (
     "CREATE_NOT_ALLOWED",     # $create anywhere in a plan
     "SKIP_IF_REQUIRED",       # call_method without skip_if
     "EDITION_MISMATCH",       # enterprise op or plan on a community target
+    "TEST_USER_NEEDS_SET",    # a role op on a test user (ofa_user_N) writes group_ids/company_ids without $set
 )
 # Only with a live target (check_online): a $ref that does not resolve.
 ONLINE_CODES = ("UNRESOLVED_REF",)
@@ -199,6 +200,18 @@ def _unorderable(ops):
     return [op["id"] for op in ops if op["id"] in left]
 
 
+def _test_user_fields_not_set(op):
+    """group_ids/company_ids of a role op (an upsert of res.users matched on an ofa_user_N login) not given as $set."""
+    if op.get("type") != "upsert_record" or op.get("model") != "res.users" or not isinstance(op.get("values"), dict):
+        return []
+    match = op.get("match") if isinstance(op.get("match"), list) else []
+    if not any(isinstance(c, list) and len(c) == 3 and c[:2] == ["login", "="] and identities.is_test_login(c[2])
+               for c in match):
+        return []
+    return [f for f in ("group_ids", "company_ids")
+            if f in op["values"] and not (isinstance(op["values"][f], dict) and set(op["values"][f]) == {"$set"})]
+
+
 def validate(plan_dir, plan=None, *, target_edition=None, root=None):
     """Return every offline problem of the plan (C6). Empty means valid."""
     plan_dir = Path(plan_dir)
@@ -249,6 +262,9 @@ def validate(plan_dir, plan=None, *, target_edition=None, root=None):
             problems.append(Problem("SKIP_IF_REQUIRED", oid, "call_method needs skip_if so a re-apply reports unchanged"))
         if target_edition == "community" and op.get("edition") == "enterprise":
             problems.append(Problem("EDITION_MISMATCH", oid, "enterprise operation on a community target"))
+        for field in _test_user_fields_not_set(op):
+            problems.append(Problem("TEST_USER_NEEDS_SET", oid, f"{field} of a test user must be {{\"$set\": [...]}}, "
+                                    "so the role holds exactly the plan's records"))
 
     if target_edition == "community" and plan.get("edition") == "enterprise":
         problems.append(Problem("EDITION_MISMATCH", None, "enterprise plan on a community target"))

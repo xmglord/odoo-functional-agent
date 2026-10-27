@@ -1,0 +1,38 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Invalid fixture: TEST_USER_NEEDS_SET",
+  "odoo_version": "20.0",
+  "edition": "community",
+  "areas": [
+    "purchase_inventory"
+  ],
+  "operations": [
+    {
+      "id": "op_010_role_buyer",
+      "type": "upsert_record",
+      "model": "res.users",
+      "key": "fixture_buyer",
+      "match": [
+        [
+          "login",
+          "=",
+          "ofa_user_1"
+        ]
+      ],
+      "values": {
+        "name": "Buyer (demo)",
+        "group_ids": {
+          "$add": [
+            {
+              "$ref": "purchase.group_purchase_user"
+            }
+          ]
+        }
+      },
+      "depends_on": [],
+      "rationale": "Fixture operation.",
+      "knowledge_refs": [],
+      "edition": "community"
+    }
+  ]
+}

@@ -94,10 +94,15 @@ These hold in every phase.
      a `match` domain for adopting an existing record
    - `call_method` needs `skip_if`, so a re-apply reports `unchanged`
    - no `$create` in plan values
+   - roles: when a need depends on who acts (an approval limit, what a user may see or do), every scenario still
+     runs as `ofa_bot`, an administrator that skips approvals. Give the role to a test user with its own op: an
+     `upsert_record` of `res.users` with `match` on `login` = `ofa_user_1` (to `ofa_user_3`) and `group_ids` /
+     `company_ids` as `$set` (see "Test identities" in `docs/plan_format.md`). Never an administrator group.
 4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
    the literal `[op_id]`, each in its own brackets. Its "Test plan" lists every need of the requirement with the
    scenario you will write for it and what that scenario checks (fields read back, expected values). Mark a need
-   no scenario will prove as **Not tested**, with the reason; do not leave a need out.
+   no scenario will prove as **Not tested**, with the reason; do not leave a need out. List the role ops in its
+   "Test identities" section.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
 6. Plan lint: run `ofa lint-plan plans/<slug> --target <slug>`. It checks every module, model, field, settings
    key, method, xmlid and selection value in plan.json, and every technical name in backticks in plan.md, against
@@ -155,7 +160,10 @@ When apply does not exit 0:
    (format `ofa.scenario/1`, see `docs/scenario_format.md`), into `plans/<slug>/scenarios/`. A check that turns out
    impossible or different from the Test plan is a difference to report in Phase 8. Check identifiers they use
    (partners, products, xmlids) with `ofa inspect`. Assertions read fields back; they never call helper methods. A
-   scenario only exercises the configuration: it must not change settings to make itself pass. When the plan works in
+   scenario only exercises the configuration: it must not change settings to make itself pass. A step that must
+   run as a role says `"as": {"$ref": "__ofa__.<role key>"}`; leave the manager's or admin's steps as the bot. Use
+   the scenario's own `users` only when the plan defines no role, and say in the report that such a test proves
+   the scenario's assumption, not the plan. When the plan works in
    a company other than the main one, set the scenario's top-level `company` to it: without it, reads and
    company-dependent values (a customer's `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s
    companies in a scenario.

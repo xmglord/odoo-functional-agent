@@ -134,6 +134,33 @@ it with `{"$ref": "__ofa__.<key>"}`.
 When the created record is a `res.company`, `ofa` also adds it to its own bot user's companies, so later
 operations can read and write in it.
 
+### Test identities
+
+A role the requirement defines (a buyer who cannot approve, a user who only sees one company) is configured on one
+of the test users `ofa provision` creates (`ofa_user_1` to `ofa_user_3`), so that scenarios can act as it (see
+"Acting as a test user" in `scenario_format.md`). Adopt it with `match` on its login and give it exactly the role's
+records with `$set`:
+
+```json
+{"id": "op_500_role_buyer", "type": "upsert_record", "model": "res.users", "key": "hf_buyer",
+ "match": [["login", "=", "ofa_user_1"]],
+ "values": {"name": "Buyer (test identity)", "group_ids": {"$set": [{"$ref": "purchase.group_purchase_user"}]}},
+ "rationale": "A buyer who can confirm purchase orders but not approve them."}
+```
+
+- `group_ids` and `company_ids` of a test user must be `$set`, so the role holds exactly the plan's records and not
+  whatever the user had before (`TEST_USER_NEEDS_SET`, checked by `ofa validate` and again by `ofa apply`). The
+  read-back after the write compares the exact set. Odoo adjusts one group itself: when a write sets `company_ids`,
+  a user of more than one company gets `base.group_multi_company` and a user of one company loses it
+  (`res.users.write`, `odoo/odoo/addons/base/models/res_users.py@20.0`). List it in the `$set` exactly when the role
+  has several companies, or the read-back fails with `VALUE_NOT_HELD`.
+- A test user never gets `base.group_system` or `base.group_erp_manager`, directly or through a group that implies
+  one: `ofa apply` refuses the op before writing it, and before the key marks the user as the plan's role
+  (`ADMIN_GROUP_ON_TEST_USER`).
+- The test users exist only in demo databases. On a real database the `match` finds nothing and the op fails, so
+  plan.md lists these ops in its "Test identities" section, apart from the configuration a real database would get.
+- The bot's group sync below never touches the test users.
+
 ### The bot user's groups
 
 `ofa` writes as its own user, `ofa_bot`, which provisioning creates with the admin user's groups. A module
@@ -187,6 +214,7 @@ operation with `UNHANDLED_WIZARD`.
 | `CREATE_NOT_ALLOWED` | no `$create` anywhere in the plan |
 | `SKIP_IF_REQUIRED` | every `call_method` has `skip_if` |
 | `EDITION_MISMATCH` | with `--target`: no `enterprise` op or plan on a community target |
+| `TEST_USER_NEEDS_SET` | an upsert of `res.users` matched on a test user's login sets `group_ids` and `company_ids` with `$set` |
 | `UNRESOLVED_REF` | with `--target`: every `$ref` exists on the target |
 
 ## Result statuses (`runs/<run_id>/apply.json`)

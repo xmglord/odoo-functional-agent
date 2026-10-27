@@ -14,6 +14,10 @@ decision may cover several ops. Rules:
   and the check that will prove it. A need no scenario will prove is still listed, marked **Not tested**, with the
   reason. The reviewer approves the plan knowing what will and will not be tested.
   Write scenario ids without backticks: the scenarios do not exist yet, so `ofa lint-plan` cannot check them.
+- "Test identities" lists each role a test acts as (a buyer, a manager, a user per company): the test user it is
+  set on, its groups and companies, and its op. Leave the section out when no step acts as another user. These ops
+  exist so tests can act as the role; a real database has no `ofa_user_N`, so they are not configuration to carry
+  over.
 
 ```markdown
 # <Plan title, same as plan.json "title">
@@ -42,6 +46,11 @@ Two to four sentences: what the business needs and the shape of the configuratio
 
 ## Decision 2: <short name>
 ...
+
+## Test identities
+| Role | Test user | Groups and companies | Op |
+|---|---|---|---|
+| <Buyer> | ofa_user_1 | `purchase.group_purchase_user`; main company | [op_500_role_...] |
 
 ## Test plan
 Scenarios to write after the apply. Every need of the requirement gets a row.

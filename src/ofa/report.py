@@ -180,6 +180,18 @@ def render(run_dir, plan_dir=None):
         lines.append("No scenarios in this run.")
     lines.append("")
 
+    acting = [(sc, ident) for sc in scenarios for ident in sc.get("identities") or []]
+    if acting:
+        lines += ["## Identities", "",
+                  "Steps with `as` ran with these test users' own keys. \"scenario users (assumption)\" means the "
+                  "scenario set the user's groups itself, so its result proves that assumption, not the plan's "
+                  "configuration.", "",
+                  "| Scenario | User | Set by | Effective groups |", "|---|---|---|---|"]
+        for sc, ident in acting:
+            lines.append(f"| {_cell(sc.get('id'))} | {_cell(ident.get('login'))} | {_cell(ident.get('source'))} | "
+                         f"{_cell(', '.join(ident.get('groups') or []))} |")
+        lines.append("")
+
     earlier = _history(run_dir)[:-1] if test else []
     if earlier:
         lines += [f"Earlier `ofa test` invocations in this run: {len(earlier)} (all results in "

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from ofa import plan as planmod
-from ofa import refs, wizards
+from ofa import identities, refs, wizards
 from ofa.errors import OdooError, OfaError, ValidationError
 
 MODULE_MODEL = "ir.module.module"
@@ -146,6 +146,29 @@ def _grant_company(client, company_id):
     client.call(USERS_MODEL, "write", ids=[client.bot_uid()], vals={"company_ids": [[4, company_id]]})
 
 
+def _test_user_before_write(client, model, res_id, values):
+    """The login when `res_id` is a test user (ofa_user_N), after refusing a role that is not exact or not safe."""
+    if model != USERS_MODEL:
+        return None
+    login = identities.login_of(client, res_id)
+    if not identities.is_test_login(login):
+        return None
+    for field in ("group_ids", "company_ids"):
+        if field in values and identities.set_commands(values[field]) is None:
+            raise ValidationError("TEST_USER_NEEDS_SET", f"{field} of test user {login} must be a $set")
+    if "group_ids" in values:
+        identities.check_requested(client, login, identities.set_commands(values["group_ids"]))
+    return login
+
+
+def _write_checked(client, model, res_id, values, ctx):
+    login = _test_user_before_write(client, model, res_id, values)
+    client.call(model, "write", ids=[res_id], vals=values, context=ctx)
+    if login:
+        identities.check_held(client, login, res_id)
+    _check_held(client, model, res_id, values, ctx, "write")
+
+
 def _upsert_record(client, op, ctx):
     model, key = op["model"], op["key"]
     values = refs.resolve(client, op["values"], {})
@@ -157,8 +180,7 @@ def _upsert_record(client, op, ctx):
         diff = _diff(client, model, res_id, values, ctx)
         if not diff:
             return "unchanged", [res_id]
-        client.call(model, "write", ids=[res_id], vals=diff, context=ctx)
-        _check_held(client, model, res_id, diff, ctx, "write")
+        _write_checked(client, model, res_id, diff, ctx)
         return "updated", [res_id]
     match = op.get("match")
     if match:
@@ -167,11 +189,12 @@ def _upsert_record(client, op, ctx):
             raise ValidationError("MATCH_NOT_UNIQUE", f"match finds more than one {model}; make it stricter")
         if len(ids) == 1:
             res_id = ids[0]
+            # Refuse a role a test user must not get before the key marks it as the plan's role.
+            _test_user_before_write(client, model, res_id, values)
             refs.store_ofa(client, key, model, res_id)
             diff = _diff(client, model, res_id, values, ctx)
             if diff:
-                client.call(model, "write", ids=[res_id], vals=diff, context=ctx)
-                _check_held(client, model, res_id, diff, ctx, "write")
+                _write_checked(client, model, res_id, diff, ctx)
             return "adopted", [res_id]
     res_id = client.call(model, "create", vals_list=[values], context=ctx)[0]
     refs.store_ofa(client, key, model, res_id)

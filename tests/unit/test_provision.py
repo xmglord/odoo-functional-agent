@@ -8,9 +8,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ofa import config, pg, provision, server
+from ofa import config, identities, pg, provision, server
 from ofa.errors import EnvError, GuardError, UsageError
 from tests.unit.test_config import HARDENED, SERVER, make_target
+
+
+USER_KEYS = {"ofa_user_1": "u1key", "ofa_user_2": "u2key", "ofa_user_3": "u3key"}
+USER_KEY_LINES = "".join(f"OFA_USER_KEY={login}={key}\n" for login, key in USER_KEYS.items())
 
 
 class ProvisionCase(unittest.TestCase):
@@ -110,6 +114,25 @@ class ProvisionTest(ProvisionCase):
         with self.assertRaises(UsageError):
             provision.provision("t2", log=lambda *_: None)
 
+    def test_keys_are_private_and_drop_removes_them(self):
+        # The test users' keys get the bot key's protection: 0600 files in a 0700 dir, gone with the target.
+        self.pg["db_exists"].return_value = False
+        with mock.patch.object(provision, "run_provision_shell", return_value=("botkey", USER_KEYS)), \
+                mock.patch.object(provision.client, "open_client"):
+            provision.provision("t1", log=lambda *_: None)
+        keys = config.config_dir() / "keys"
+        files = [keys / "ofa_demo_t1.key"] + [identities.key_path("ofa_demo_t1", l) for l in identities.LOGINS]
+        self.assertEqual(oct(keys.stat().st_mode & 0o777), "0o700")
+        for f in files:
+            with self.subTest(f=f.name):
+                self.assertEqual(oct(f.stat().st_mode & 0o777), "0o600")
+        self.assertEqual(identities.key_path("ofa_demo_t1", "ofa_user_2").read_text().strip(), "u2key")
+        self.pg["db_exists"].return_value = True
+        self.pg["read_marker"].return_value = config.load().target("t1").marker
+        code, _ = self.quiet(provision.drop, ["t1"])
+        self.assertEqual(code, 0)
+        self.assertEqual([f for f in files if f.exists()], [])
+
     def test_rollback_on_shell_failure(self):
         self.pg["db_exists"].return_value = False
         with mock.patch.object(provision, "run_provision_shell", side_effect=EnvError("SHELL_FAILED", "x")):
@@ -121,13 +144,20 @@ class ProvisionTest(ProvisionCase):
 
     def test_shell_sentinel_and_no_key_leak(self):
         s = config.load().server
-        ok = subprocess.CompletedProcess([], 0, stdout="noise\nOFA_KEY=abc123\n", stderr="")
+        ok = subprocess.CompletedProcess([], 0, stdout="noise\nOFA_KEY=abc123\n" + USER_KEY_LINES, stderr="")
         with mock.patch.object(subprocess, "run", return_value=ok) as run:
-            self.assertEqual(provision.run_provision_shell(s, "ofa_demo_t1", "m-1"), "abc123")
+            self.assertEqual(provision.run_provision_shell(s, "ofa_demo_t1", "m-1"), ("abc123", USER_KEYS))
         argv, script = run.call_args.args[0], run.call_args.kwargs["input"]
         self.assertEqual(argv[2], "shell")
         self.assertIn("ICP.set_str('ofa.demo_marker', 'm-1')", script)
         self.assertIn("orm_signaling_registry", script)
+        self.assertIn("for login in ['ofa_user_1', 'ofa_user_2', 'ofa_user_3']:", script)
+        # A missing test-user key is a failed provision, not a target that cannot run `as` steps later.
+        partial = subprocess.CompletedProcess([], 0, stdout="OFA_KEY=abc123\nOFA_USER_KEY=ofa_user_1=u1\n", stderr="")
+        with mock.patch.object(subprocess, "run", return_value=partial):
+            with self.assertRaises(EnvError) as cm:
+                provision.run_provision_shell(s, "ofa_demo_t1", "m-1")
+        self.assertNotIn("u1", str(cm.exception))
         bad = subprocess.CompletedProcess([], 1, stdout="OFA_KEY=secretpart\nTraceback", stderr="boom")
         with mock.patch.object(subprocess, "run", return_value=bad):
             with self.assertRaises(EnvError) as cm:

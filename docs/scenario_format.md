@@ -55,6 +55,8 @@ them.
 | `steps` | yes | non-empty list of steps |
 | `evidence` | no | records to read back and, optionally, screenshot |
 | `company` | no | a `{"$ref"}`, `{"$var"}` or `{"$search"}` naming a `res.company`; every call of the scenario runs in that company (see below) |
+| `as` | no | the test user every step acts as (see "Acting as a test user"); a step's own `as` overrides it |
+| `users` | no | test users the scenario gives groups itself, only when the plan defines no role (see below) |
 
 Unknown keys are rejected, at the top level and in steps, so typos fail at load time instead of being ignored.
 
@@ -71,6 +73,35 @@ Record rules then apply to that company: a record of another company is not foun
 (for example a customer's `total_due`) are computed for it. A wizard opened by a `call` step keeps the company and
 adds the action's own context. A `company` that does not resolve to one id fails the step. Use it instead of
 changing `ofa_bot`'s `company_ids`.
+
+### Acting as a test user
+
+`ofa_bot` holds every group the admin has, so it skips approvals and record rules: an order it confirms never waits
+for a manager. To prove what a role can and cannot do, a step acts as a test user. `ofa provision` creates three,
+`ofa_user_1` to `ofa_user_3`, internal users of the main company with only `base.group_user`, each with its own API
+key next to the bot's.
+
+- `as` on a step, or at the top level for every step, is a `{"$ref"}`, `{"$var"}` or `{"$search"}` naming one of
+  them. That step's calls (create, search, write, call, read, assert) go with that user's key, so Odoo applies its
+  access rights, record rules and approval limits. References are still resolved by the bot, and evidence is read by
+  the bot. A step without `as` runs as the bot, for example the manager's approval.
+- **The plan gives the role.** When the requirement defines roles (a buyer, a manager, a user per company), an
+  `upsert_record` op of the plan adopts a test user and sets its `group_ids` and `company_ids` with `$set` (see
+  "Test identities" in `plan_format.md`). The scenario then only says `"as": {"$ref": "__ofa__.<key>"}`. This way
+  the author approves the role at the review stop, and the test proves the plan's configuration, not the scenario's
+  assumption.
+- **`users` only without a plan role.** `"users": {"<name>": {"login": "ofa_user_2", "groups": [refs],
+  "companies": [refs]}}` gives that user exactly those groups (and companies, the first being its default) before
+  the steps run, and `"as": "<name>"` acts as it. The report marks such a user "scenario users (assumption)".
+  Declaring a user that a plan role owns is an `error` (`TEST_USER_HAS_ROLE`).
+- A test user never gets an administrator group: `base.group_system` or `base.group_erp_manager`, or any group that
+  implies one. `ofa` checks the requested groups (with what they imply) before writing and the user's
+  `all_group_ids` after, and refuses with `ADMIN_GROUP_ON_TEST_USER`. In `users` that is an `error` at the reserved
+  step `identities`.
+
+`test.json` lists, per scenario, each test user a step acted as: its login, what set its groups (`plan role
+__ofa__.<key>`, `scenario users (assumption)` or `provisioned, no role`) and its effective groups. `report.md`
+shows them in an "Identities" table.
 
 ## Steps
 

@@ -17,7 +17,7 @@ ofa test [--plan-dir D] [--run RUN_ID] --target N SCENARIO.json...
 | File | Written by | Contents |
 |---|---|---|
 | `apply.json` | `ofa apply` | the per-operation results (see [plan_format.md](plan_format.md)) |
-| `test.json` | `ofa test` | `{"run_id", "target", "scenarios": [{"id", "status", "steps": [{"id", "status", "message", "records": {"model", "ids"}}]}]}` |
+| `test.json` | `ofa test` | `{"run_id", "target", "scenarios": [{"id", "status", "steps": [{"id", "status", "message", "records": {"model", "ids"}}], "identities"?: [{"login", "source", "groups"}]}]}`; `identities` only when a step acted `as` a test user |
 | `records.json` | `ofa test` | `{scenario id: {evidence label: [rows]}}`; a read-back that failed is `{"error": message}` |
 | `screenshot_targets.json` | `ofa test` | `[{"scenario", "label", "model", "id", "url"}]` with `url` = `<server url>/odoo/<model>/<id>` |
 | `calls.jsonl` | `ofa test` | one JSON object per Odoo call: `ts`, `model`, `method`, `ids`, `duration_ms`, `status`; appended, so lines already in the run dir are kept |

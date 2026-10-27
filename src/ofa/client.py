@@ -5,7 +5,7 @@ import time
 import urllib.error
 import urllib.request
 
-from ofa import config, guard
+from ofa import config, guard, identities
 from ofa.errors import EnvError, GuardError, OdooError, UsageError
 
 TIMEOUT = 120
@@ -129,3 +129,16 @@ def open_client(target_name, *, cfg=None, required_edition=None):
     if marker != target.marker:
         raise GuardError("MARKER_MISMATCH", f"{target.db} marker does not match the registered one")
     return client
+
+
+def open_identity(bot, login):
+    """A client that acts as the test user `login` on the bot's target, already guarded by open_client.
+
+    Test users cannot read the demo marker (system parameters are admin-only), so the guard is the bot's.
+    Calls go to the bot's call log, so calls.jsonl keeps one ordered record of the run.
+    """
+    if not identities.is_test_login(login):
+        raise GuardError("NOT_A_TEST_USER", f"{login!r} is not a test user (ofa_user_1..3)")
+    user = OdooClient(bot.target, identities.read_key(bot.target, login), bot.xmlid_store, _OPEN)
+    user.call_log = bot.call_log
+    return user

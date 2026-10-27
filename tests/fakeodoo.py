@@ -69,6 +69,7 @@ def error_body(name, message, debug=None):
 class FakeOdoo:
     def __init__(self, key="test-key", db="ofa_demo_test"):
         self.key = key
+        self.extra_keys = set()  # other users' keys the server also accepts (test identities)
         self.db = db
         self.requests = []
         self._scripts = {}
@@ -101,7 +102,7 @@ class FakeOdoo:
                 if (model is None or r.model == model) and (method is None or r.method == method)]
 
     def _respond(self, req):
-        if req.headers.get("authorization") != f"bearer {self.key}":
+        if req.headers.get("authorization") not in {f"bearer {k}" for k in {self.key, *self.extra_keys}}:
             return Response(401, error_body("werkzeug.exceptions.Unauthorized", "Invalid apikey"))
         if req.headers.get("x-odoo-database") != self.db:
             return Response(404, "<!doctype html><title>404 Not Found</title>", "text/html")

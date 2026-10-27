@@ -7,7 +7,7 @@ import json
 import re
 from pathlib import Path
 
-from ofa import refs, wizards
+from ofa import client as clientmod, identities, refs, wizards
 from ofa.errors import EnvError, GuardError, OdooError, OfaError, ValidationError
 
 FORMAT = "ofa.scenario/1"
@@ -18,10 +18,11 @@ VAR_RE = re.compile(r"^[a-z_][a-z0-9_]{0,60}$")
 OPS = ("eq", "ne", "in", "not_in", "gt", "gte", "lt", "lte", "contains")
 
 TOP_REQUIRED = ("format", "id", "area", "odoo_version", "edition", "description", "steps")
-TOP_OPTIONAL = ("requires", "preconditions", "evidence", "company")
+TOP_OPTIONAL = ("requires", "preconditions", "evidence", "company", "as", "users")
 STEP_COMMON = ("id", "action", "model")
-# Any step may name a company; its calls then run in that company (overrides the scenario-level `company`).
-STEP_OPTIONAL = ("company",)
+# Any step may name a company and a user; its calls then run in that company, as that user (each overrides the
+# scenario-level `company` / `as`).
+STEP_OPTIONAL = ("company", "as")
 # action -> (required keys besides id/action/model, optional keys)
 ACTIONS = {
     "create": (("values",), ("save_as",)),
@@ -36,6 +37,9 @@ EVIDENCE_OPTIONAL = ("screenshot", "company")
 
 PASS, FAIL, ERROR, SKIPPED = "pass", "fail", "error", "skipped"
 REQUIRES_STEP = "requires"
+IDENTITIES_STEP = "identities"
+USER_KEYS = ("login", "groups")
+USER_OPTIONAL = ("companies",)
 
 _TRACE_RE = re.compile(r"Traceback \(most recent call last\).*", re.S)
 _PATH_RE = re.compile(r"(?:[A-Za-z]:)?/(?:home|Users|root|tmp|opt|srv|usr|var)/\S*")
@@ -99,7 +103,41 @@ def _check_company(value, where):
         raise _bad(where, 'must be one {"$ref"}, {"$var"} or {"$search"} naming a res.company')
 
 
-def _check_steps(steps, where, seen_ids):
+def _check_ref(value, where, what):
+    if not (isinstance(value, dict) and len(value) == 1 and next(iter(value)) in ("$ref", "$var", "$search")):
+        raise _bad(where, f'must be one {{"$ref"}}, {{"$var"}} or {{"$search"}} naming {what}')
+
+
+def _check_as(value, where, user_names):
+    if isinstance(value, str):
+        if value not in user_names:
+            raise _bad(where, f"{value!r} is not declared in users")
+        return
+    _check_ref(value, where, "a res.users test user")
+
+
+def _check_users(users, where):
+    if not isinstance(users, dict) or not users:
+        raise _bad(where, "must be a non-empty object {name: {login, groups, companies}}")
+    logins = set()
+    for name, user in users.items():
+        at = f"{where}.{name}"
+        _check_str(name, f"{where} key", VAR_RE)
+        _check_keys(user, at, USER_KEYS, USER_OPTIONAL)
+        if not identities.is_test_login(user["login"]):
+            raise _bad(f"{at}.login", f"must be a test user: {', '.join(identities.LOGINS)}")
+        if user["login"] in logins:
+            raise _bad(f"{at}.login", f"{user['login']} is declared twice")
+        logins.add(user["login"])
+        for key in ("groups",) + (("companies",) if "companies" in user else ()):
+            items = user[key]
+            if not isinstance(items, list) or not items:
+                raise _bad(f"{at}.{key}", "must be a non-empty list")
+            for i, item in enumerate(items):
+                _check_ref(item, f"{at}.{key}[{i}]", "a record")
+
+
+def _check_steps(steps, where, seen_ids, user_names=()):
     if not isinstance(steps, list) or not steps:
         raise _bad(where, "must be a non-empty list")
     for i, step in enumerate(steps):
@@ -114,13 +152,15 @@ def _check_steps(steps, where, seen_ids):
         _check_str(step["id"], f"{at}.id", ID_RE)
         if step["id"] in seen_ids:
             raise _bad(at, f"duplicate step id {step['id']!r}")
-        if step["id"] == REQUIRES_STEP:
-            raise _bad(at, f"step id {REQUIRES_STEP!r} is reserved")
+        if step["id"] in (REQUIRES_STEP, IDENTITIES_STEP):
+            raise _bad(at, f"step id {step['id']!r} is reserved")
         seen_ids.add(step["id"])
         _check_str(step["model"], f"{at}.model")
         at = f"{where}[{step['id']}]"
         if "company" in step:
             _check_company(step["company"], f"{at}.company")
+        if "as" in step:
+            _check_as(step["as"], f"{at}.as", user_names)
         if "values" in step and not isinstance(step["values"], dict):
             raise _bad(f"{at}.values", "must be an object")
         if "domain" in step and not isinstance(step["domain"], list):
@@ -168,10 +208,15 @@ def validate(scenario, where="scenario"):
             raise _bad(f"{where}.requires.modules", "must be a list of module names")
     if "company" in scenario:
         _check_company(scenario["company"], f"{where}.company")
+    if "users" in scenario:
+        _check_users(scenario["users"], f"{where}.users")
+    user_names = tuple(scenario.get("users") or ())
+    if "as" in scenario:
+        _check_as(scenario["as"], f"{where}.as", user_names)
     seen = set()
     if "preconditions" in scenario:
-        _check_steps(scenario["preconditions"], f"{where}.preconditions", seen)
-    _check_steps(scenario["steps"], f"{where}.steps", seen)
+        _check_steps(scenario["preconditions"], f"{where}.preconditions", seen, user_names)
+    _check_steps(scenario["steps"], f"{where}.steps", seen, user_names)
     evidence = scenario.get("evidence", [])
     if not isinstance(evidence, list):
         raise _bad(f"{where}.evidence", "must be a list")
@@ -306,23 +351,99 @@ class _InCompany:
         return getattr(self._client, name)
 
 
-def in_company(client, spec, vars):
-    """`client` itself when `spec` is None, else a client whose calls run in the company `spec` resolves to."""
+def in_company(client, spec, vars, actor=None):
+    """`client` itself when `spec` is None, else a client whose calls run in the company `spec` resolves to.
+
+    `spec` is resolved with `client`; with `actor` given, that client (a test user's) is the one wrapped.
+    """
+    actor = client if actor is None else actor
     if spec is None:
-        return client
+        return actor
     company_id = refs.resolve(client, spec, vars)
     if not _is_int(company_id):
         raise ValidationError("BAD_TARGET", f"company must resolve to one res.company id, got {company_id!r}")
-    return _InCompany(client, company_id)
+    return _InCompany(actor, company_id)
 
 
-def _run_step(client, step, vars):
-    """Run one step and return its {"model", "ids"} records. Raises StepFailed or OfaError."""
+class _Identities:
+    """The test users a scenario acts as (C8 `as`): their clients, and what the report says about each.
+
+    The bot resolves every reference and sets up declared `users`; a step with `as` makes its calls with that
+    user's own key, so Odoo applies that user's access rights, record rules and approval limits.
+    """
+
+    def __init__(self, bot, scenario):
+        self.bot = bot
+        self.declared = scenario.get("users") or {}
+        self.uids = {}       # declared name -> uid
+        self.clients = {}    # login -> client
+        self.used = {}       # login -> {"login", "source", "groups"}
+
+    def _role_key(self, uid):
+        rows = self.bot.call("ir.model.data", "search_read",
+                             domain=[["model", "=", identities.USERS_MODEL], ["res_id", "=", uid],
+                                     ["module", "=", refs.OFA_MODULE]], fields=["name"], limit=1)
+        return rows[0]["name"] if rows else None
+
+    def _uid_of_login(self, login):
+        found = self.bot.call(identities.USERS_MODEL, "search", domain=[["login", "=", login]], limit=1)
+        if not found:
+            raise EnvError("TEST_USER_MISSING", f"no {login} on {self.bot.target.db}; ofa reset {self.bot.target.name}")
+        return found[0]
+
+    def setup(self, vars):
+        """Give each declared user exactly its groups (and companies). Only for users no plan role owns."""
+        for name, user in self.declared.items():
+            login = user["login"]
+            uid = self._uid_of_login(login)
+            key = self._role_key(uid)
+            if key:
+                raise ValidationError("TEST_USER_HAS_ROLE", f"{login} is the plan's role __ofa__.{key}; act as it "
+                                      f'with "as": {{"$ref": "__ofa__.{key}"}} instead of declaring it in users')
+            groups = [refs.resolve(self.bot, g, vars) for g in user["groups"]]
+            identities.check_requested(self.bot, login, groups)
+            vals = {"group_ids": [[6, 0, groups]]}
+            if "companies" in user:
+                companies = [refs.resolve(self.bot, c, vars) for c in user["companies"]]
+                vals["company_ids"] = [[6, 0, companies]]
+                vals["company_id"] = companies[0]
+            self.bot.call(identities.USERS_MODEL, "write", ids=[uid], vals=vals)
+            identities.check_held(self.bot, login, uid)
+            self.uids[name] = uid
+
+    def actor(self, spec, vars):
+        """The client to call with for `as` = spec: None for the bot itself."""
+        if spec is None:
+            return None
+        uid = self.uids[spec] if isinstance(spec, str) else refs.resolve(self.bot, spec, vars)
+        if not _is_int(uid):
+            raise ValidationError("BAD_TARGET", f"as must resolve to one res.users id, got {uid!r}")
+        if uid == self.bot.bot_uid():
+            return None
+        login = identities.login_of(self.bot, uid)
+        if login not in self.clients:
+            self.clients[login] = clientmod.open_identity(self.bot, login)
+            key = self._role_key(uid)
+            source = (f"plan role __ofa__.{key}" if key
+                      else "scenario users (assumption)" if isinstance(spec, str) else "provisioned, no role")
+            self.used[login] = {**identities.describe(self.bot, uid), "source": source}
+        return self.clients[login]
+
+    def report(self):
+        return [self.used[login] for login in sorted(self.used)]
+
+
+def _run_step(client, step, vars, actor=None):
+    """Run one step and return its {"model", "ids"} records. Raises StepFailed or OfaError.
+
+    `client` resolves references; `actor` (default `client`) makes the step's own calls.
+    """
+    actor = client if actor is None else actor
     action, model = step["action"], step["model"]
     records = {"model": model, "ids": []}
     if action == "create":
         values = refs.resolve(client, step["values"], vars)
-        new_ids = client.call(model, "create", vals_list=[values])
+        new_ids = actor.call(model, "create", vals_list=[values])
         records["ids"] = list(new_ids)
         if "save_as" in step:
             vars[step["save_as"]] = new_ids[0]
@@ -331,7 +452,7 @@ def _run_step(client, step, vars):
         params = {"domain": refs.resolve(client, step["domain"], vars)}
         if "limit" in step:
             params["limit"] = step["limit"]
-        found = client.call(model, "search", **params)
+        found = actor.call(model, "search", **params)
         records["ids"] = list(found)
         if "save_as" in step:
             vars[step["save_as"]] = list(found)
@@ -341,13 +462,13 @@ def _run_step(client, step, vars):
     ids = _ids(refs.resolve(client, step["target"], vars), step["id"])
     records["ids"] = ids
     if action == "write":
-        client.call(model, "write", ids=ids, vals=refs.resolve(client, step["values"], vars))
+        actor.call(model, "write", ids=ids, vals=refs.resolve(client, step["values"], vars))
     elif action == "call":
         params = refs.resolve(client, step.get("params") or {}, vars)
-        wizards.call_following(client, model, step["method"], ids, params=params, wizards=step.get("wizards"))
+        wizards.call_following(actor, model, step["method"], ids, params=params, wizards=step.get("wizards"))
     elif action in ("read", "assert"):
         fields = step["fields"] if action == "read" else list(step["expect"]["fields"])
-        rows = client.call(model, "read", ids=ids, fields=fields)
+        rows = actor.call(model, "read", ids=ids, fields=fields)
         if action == "read" and "save_as" in step:
             vars[step["save_as"]] = rows
         if "expect" in step:
@@ -355,10 +476,11 @@ def _run_step(client, step, vars):
     return records
 
 
-def _run_steps(client, steps, vars, failure_status, company=None):
+def _run_steps(client, steps, vars, failure_status, company=None, users=None, as_=None):
     """Run steps until the first failure. Returns (status, results).
 
-    `company` is the scenario-level company spec; a step's own `company` overrides it.
+    `company` and `as_` are the scenario-level specs; a step's own `company` and `as` override them.
+    `users` is the scenario's _Identities.
     """
     results = []
     status = PASS
@@ -367,7 +489,10 @@ def _run_steps(client, steps, vars, failure_status, company=None):
             results.append({"id": step["id"], "status": SKIPPED, "message": "", "records": {"model": step["model"], "ids": []}})
             continue
         try:
-            records = _run_step(in_company(client, step.get("company", company), vars), step, vars)
+            spec = step.get("company", company)
+            user = users.actor(step.get("as", as_), vars) if users else None
+            resolver = in_company(client, spec, vars)
+            records = _run_step(resolver, step, vars, in_company(client, spec, vars, user) if user else None)
             results.append({"id": step["id"], "status": PASS, "message": "", "records": records})
         except StepFailed as e:
             status = failure_status
@@ -425,19 +550,31 @@ def run(client, scenario):
     if problem:
         status = ERROR
         steps_out.append({"id": REQUIRES_STEP, "status": ERROR, "message": scrub(problem), "records": {"model": "", "ids": []}})
+    users = _Identities(client, scenario)
+    if status == PASS and users.declared:
+        try:
+            users.setup(vars)
+        except OfaError as e:
+            status = ERROR
+            steps_out.append({"id": IDENTITIES_STEP, "status": ERROR, "message": safe_message(e),
+                              "records": {"model": identities.USERS_MODEL, "ids": []}})
+    scope = {"company": scenario.get("company"), "users": users, "as_": scenario.get("as")}
     if status == PASS and scenario.get("preconditions"):
         # A failing precondition means the scenario could not be set up: error, not fail.
-        status, results = _run_steps(client, scenario["preconditions"], vars, ERROR, scenario.get("company"))
+        status, results = _run_steps(client, scenario["preconditions"], vars, ERROR, **scope)
         steps_out += results
     if status == PASS:
-        status, results = _run_steps(client, scenario["steps"], vars, FAIL, scenario.get("company"))
+        status, results = _run_steps(client, scenario["steps"], vars, FAIL, **scope)
         steps_out += results
     else:
         done = {s["id"] for s in steps_out}
         steps_out += [{"id": s["id"], "status": SKIPPED, "message": "", "records": {"model": s["model"], "ids": []}}
                       for s in (scenario.get("preconditions") or []) + scenario["steps"] if s["id"] not in done]
     evidence, shots = ({}, []) if status == ERROR else collect_evidence(client, scenario, vars)
-    return {"id": scenario["id"], "status": status, "steps": steps_out}, evidence, shots
+    result = {"id": scenario["id"], "status": status, "steps": steps_out}
+    if users.used:
+        result["identities"] = users.report()
+    return result, evidence, shots
 
 
 def screenshot_url(base_url, model, res_id):

@@ -24,5 +24,19 @@ bot = env['res.users'].create({
 env.cr.execute("SELECT setval('orm_signaling_registry_id_seq', %s)", [1_000_000 + secrets.randbelow(2**31 - 2_000_000)])
 env.cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES")
 key = env['res.users.apikeys'].with_user(bot).sudo()._generate('rpc', 'ofa', None)
+# Test identities: plain internal users in the admin's company. A plan gives them a role with its own ops;
+# only odoo-bin shell can mint their keys (make_key over RPC needs the user's own password).
+user_keys = {}
+for login in $test_logins:
+    user = env['res.users'].create({
+        'name': 'OFA test user ' + login.rsplit('_', 1)[1],
+        'login': login,
+        'group_ids': [(6, 0, [env.ref('base.group_user').id])],
+        'company_ids': [(6, 0, [admin.company_id.id])],
+        'company_id': admin.company_id.id,
+    })
+    user_keys[login] = env['res.users.apikeys'].with_user(user).sudo()._generate('rpc', 'ofa', None)
 env.cr.commit()
 print('OFA_KEY=' + key)
+for login, user_key in user_keys.items():
+    print('OFA_USER_KEY=' + login + '=' + user_key)
