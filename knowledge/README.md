@@ -136,3 +136,14 @@ these first.
 - **Product tracking is `store_by`.** `product.template.store_by` (`untracked`, `quantity`, `lot`, `serial`) is the
   "Tracking" field. `tracking` is now only `lot` or `serial`, with `False` for a product tracked by quantity; the
   value `'none'` is gone (`odoo/addons/stock/models/product.py@20.0`).
+- **Record rules are `ir.access` too.** `ir.rule` (with `domain_force`) is gone. A record rule is an `ir.access`
+  record with a `domain`; its computed `kind` is `restriction` (it narrows access) or `permission`, and a rule
+  without `group_id` applies to everyone (`odoo/odoo/addons/base/models/ir_access.py@20.0`).
+- **No `ir.attachment.datas`.** The file content is `raw` (binary) on `ir.attachment`; `datas` (base64) is gone
+  (`odoo/odoo/addons/base/models/ir_attachment.py@20.0`).
+- **No `base_vat` module.** VAT number checks (`_check_vat`, `check_vat_<country>`) live in `base`
+  (`odoo/odoo/addons/base/models/res_partner.py@20.0`); do not plan an install of `base_vat`.
+- **Inter-company rules have no user or warehouse fields.** `res.company.intercompany_user_id`,
+  `intercompany_warehouse_id` and `intercompany_receipt_type_id` and their settings fields are gone; the generated
+  documents are created as the superuser in the receiving company
+  (`enterprise/account_inter_company_rules/models/account_move.py@20.0`).
