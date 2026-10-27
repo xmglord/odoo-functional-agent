@@ -1,0 +1,35 @@
+{
+  "format": "ofa.scenario/1", "id": "hf_auto_replenishment", "area": "purchase_inventory", "odoo_version": "20.0",
+  "edition": "community", "company": {"$ref": "base.main_company"},
+  "description": "Need 3: the automatic min 20 / max 100 rule for floor cleaner. Confirming a delivery of 10 with no stock drops the forecast to -10 and the immediate scheduler trigger prepares a draft RFQ of 110 to Brightside (cheapest from 50) at 7.50.",
+  "requires": {"modules": ["purchase_stock"]},
+  "preconditions": [
+    {"id": "p010", "action": "search", "model": "purchase.order.line",
+     "domain": [["product_id.default_code", "=", "HF-CL-001"]], "expect": {"count": 0}}
+  ],
+  "steps": [
+    {"id": "s010", "action": "assert", "model": "stock.warehouse.orderpoint", "target": {"$ref": "__ofa__.hf_rr_floor_cleaner"},
+     "expect": {"fields": {"product_min_qty": {"eq": 20}, "product_max_qty": {"eq": 100}, "trigger": {"eq": "auto"},
+                           "location_id": {"eq": {"$ref": "stock.stock_location_stock"}}, "qty_to_order": {"eq": 100},
+                           "effective_vendor_id": {"eq": {"$ref": "__ofa__.hf_vendor_brightside"}}}}},
+    {"id": "s020", "action": "create", "model": "stock.picking",
+     "values": {"picking_type_id": {"$ref": "stock.picking_type_out"}, "partner_id": {"$ref": "base.res_partner_12"},
+                "location_id": {"$ref": "stock.stock_location_stock"}, "location_dest_id": {"$ref": "stock.stock_location_customers"},
+                "move_ids": {"$create": [{"product_id": {"$search": {"model": "product.product", "domain": [["default_code", "=", "HF-CL-001"]]}},
+                                          "product_uom_qty": 10,
+                                          "location_id": {"$ref": "stock.stock_location_stock"},
+                                          "location_dest_id": {"$ref": "stock.stock_location_customers"}}]}},
+     "save_as": "delivery"},
+    {"id": "s030", "action": "call", "model": "stock.picking", "target": {"$var": "delivery"}, "method": "action_confirm"},
+    {"id": "s040", "action": "search", "model": "purchase.order.line",
+     "domain": [["orderpoint_id", "=", {"$ref": "__ofa__.hf_rr_floor_cleaner"}]], "save_as": "rfq_lines", "expect": {"count": 1}},
+    {"id": "s050", "action": "assert", "model": "purchase.order.line", "target": {"$var": "rfq_lines"},
+     "expect": {"fields": {"product_qty": {"eq": 110}, "price_unit": {"eq": 7.5}, "state": {"eq": "draft"},
+                           "partner_id": {"eq": {"$ref": "__ofa__.hf_vendor_brightside"}}}}}
+  ],
+  "evidence": [{"label": "auto_rfq_line", "model": "purchase.order.line", "target": {"$var": "rfq_lines"},
+                "fields": ["order_id", "partner_id", "product_qty", "price_unit", "orderpoint_id", "state"], "screenshot": false},
+               {"label": "auto_rfq", "model": "purchase.order",
+                "target": {"$search": {"model": "purchase.order", "domain": [["order_line.orderpoint_id", "=", {"$ref": "__ofa__.hf_rr_floor_cleaner"}]]}},
+                "fields": ["name", "partner_id", "state", "amount_untaxed"], "screenshot": true}]
+}

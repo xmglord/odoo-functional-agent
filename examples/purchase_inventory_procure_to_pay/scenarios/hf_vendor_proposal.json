@@ -1,0 +1,42 @@
+{
+  "format": "ofa.scenario/1", "id": "hf_vendor_proposal", "area": "purchase_inventory", "odoo_version": "20.0",
+  "edition": "community", "company": {"$ref": "base.main_company"},
+  "description": "Need 2: vendor lines carry price, minimum quantity and lead time; the proposed vendor for tomatoes depends on quantity (Bayline at 50, Northpoint at 200, Coastal at 600 under the native rule, although Northpoint is cheaper). Order Once at 200 creates a draft RFQ to Northpoint at 1.00. Uses a temporary manual rule, archived at the end.",
+  "requires": {"modules": ["purchase_stock"]},
+  "preconditions": [
+    {"id": "p010", "action": "search", "model": "stock.warehouse.orderpoint",
+     "domain": [["product_id.default_code", "=", "HF-FD-001"]], "expect": {"count": 0}}
+  ],
+  "steps": [
+    {"id": "s010", "action": "assert", "model": "product.supplierinfo", "target": {"$ref": "__ofa__.hf_si_tomatoes_bayline"},
+     "expect": {"fields": {"price": {"eq": 1.2}, "min_qty": {"eq": 1}, "delay": {"eq": 3}, "partner_id": {"eq": {"$ref": "__ofa__.hf_vendor_bayline"}}}}},
+    {"id": "s020", "action": "assert", "model": "product.supplierinfo", "target": {"$ref": "__ofa__.hf_si_tomatoes_northpoint"},
+     "expect": {"fields": {"price": {"eq": 1.0}, "min_qty": {"eq": 100}, "delay": {"eq": 7}}}},
+    {"id": "s030", "action": "assert", "model": "product.supplierinfo", "target": {"$ref": "__ofa__.hf_si_tomatoes_coastal"},
+     "expect": {"fields": {"price": {"eq": 1.1}, "min_qty": {"eq": 500}, "delay": {"eq": 5}}}},
+    {"id": "s040", "action": "create", "model": "stock.warehouse.orderpoint",
+     "values": {"product_id": {"$search": {"model": "product.product", "domain": [["default_code", "=", "HF-FD-001"]]}},
+                "location_id": {"$ref": "stock.stock_location_stock"}, "trigger": "manual",
+                "product_min_qty": 50, "product_max_qty": 50},
+     "save_as": "rule"},
+    {"id": "s050", "action": "assert", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"},
+     "expect": {"fields": {"qty_to_order": {"eq": 50}, "effective_vendor_id": {"eq": {"$ref": "__ofa__.hf_vendor_bayline"}}}}},
+    {"id": "s060", "action": "write", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"},
+     "values": {"product_min_qty": 600, "product_max_qty": 600}},
+    {"id": "s070", "action": "assert", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"},
+     "expect": {"fields": {"qty_to_order": {"eq": 600}, "effective_vendor_id": {"eq": {"$ref": "__ofa__.hf_vendor_coastal"}}}}},
+    {"id": "s080", "action": "write", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"},
+     "values": {"product_min_qty": 200, "product_max_qty": 200}},
+    {"id": "s090", "action": "assert", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"},
+     "expect": {"fields": {"qty_to_order": {"eq": 200}, "effective_vendor_id": {"eq": {"$ref": "__ofa__.hf_vendor_northpoint"}}}}},
+    {"id": "s100", "action": "call", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"}, "method": "action_replenish"},
+    {"id": "s110", "action": "search", "model": "purchase.order.line",
+     "domain": [["orderpoint_id", "=", {"$var": "rule"}]], "save_as": "rfq_lines", "expect": {"count": 1}},
+    {"id": "s120", "action": "assert", "model": "purchase.order.line", "target": {"$var": "rfq_lines"},
+     "expect": {"fields": {"product_qty": {"eq": 200}, "price_unit": {"eq": 1.0}, "state": {"eq": "draft"},
+                           "partner_id": {"eq": {"$ref": "__ofa__.hf_vendor_northpoint"}}}}},
+    {"id": "s130", "action": "write", "model": "stock.warehouse.orderpoint", "target": {"$var": "rule"}, "values": {"active": false}}
+  ],
+  "evidence": [{"label": "tomatoes_rfq_line", "model": "purchase.order.line", "target": {"$var": "rfq_lines"},
+                "fields": ["order_id", "partner_id", "product_qty", "price_unit", "date_planned", "state"], "screenshot": false}]
+}

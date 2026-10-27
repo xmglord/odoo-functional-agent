@@ -1,0 +1,137 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "hf_lots_fefo_recheck",
+ "area": "purchase_inventory",
+ "odoo_version": "20.0",
+ "edition": "community",
+ "company": {
+  "$ref": "base.main_company"
+ },
+ "description": "Read-only recheck of hf_lots_fefo's last step on this database (the first run's assertion compared a many2one with a list): the delivery of 10 tomatoes reserved lot HF-EARLY and nothing from HF-LATE.",
+ "requires": {
+  "modules": [
+   "product_expiry"
+  ]
+ },
+ "steps": [
+  {
+   "id": "s010",
+   "action": "search",
+   "model": "stock.picking",
+   "domain": [
+    [
+     "picking_type_id",
+     "=",
+     {
+      "$ref": "stock.picking_type_out"
+     }
+    ],
+    [
+     "move_ids.product_id.default_code",
+     "=",
+     "HF-FD-001"
+    ]
+   ],
+   "save_as": "delivery",
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "stock.move.line",
+   "domain": [
+    [
+     "picking_id",
+     "in",
+     {
+      "$var": "delivery"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s030",
+   "action": "search",
+   "model": "stock.move.line",
+   "domain": [
+    [
+     "picking_id",
+     "in",
+     {
+      "$var": "delivery"
+     }
+    ],
+    [
+     "lot_id.name",
+     "=",
+     "HF-EARLY"
+    ],
+    [
+     "quantity",
+     "=",
+     10
+    ]
+   ],
+   "save_as": "dl_lines",
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s040",
+   "action": "search",
+   "model": "stock.move.line",
+   "domain": [
+    [
+     "picking_id",
+     "in",
+     {
+      "$var": "delivery"
+     }
+    ],
+    [
+     "lot_id.name",
+     "=",
+     "HF-LATE"
+    ]
+   ],
+   "expect": {
+    "count": 0
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "fefo_delivery_line",
+   "model": "stock.move.line",
+   "target": {
+    "$var": "dl_lines"
+   },
+   "fields": [
+    "lot_id",
+    "quantity",
+    "location_id",
+    "picking_id"
+   ],
+   "screenshot": false
+  },
+  {
+   "label": "fefo_delivery",
+   "model": "stock.picking",
+   "target": {
+    "$var": "delivery"
+   },
+   "fields": [
+    "name",
+    "state",
+    "origin"
+   ],
+   "screenshot": true
+  }
+ ]
+}

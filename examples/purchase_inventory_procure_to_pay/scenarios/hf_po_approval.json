@@ -1,0 +1,12 @@
+{
+  "format": "ofa.scenario/1", "id": "hf_po_approval", "area": "purchase_inventory", "odoo_version": "20.0",
+  "edition": "community", "company": {"$ref": "base.main_company"},
+  "description": "Need 1: the main company requires a second approval for purchase orders whose total reaches 50,000. Reads the company fields; the to-approve behaviour cannot be shown because ofa_bot is a purchase manager.",
+  "requires": {"modules": ["purchase"]},
+  "steps": [
+    {"id": "s010", "action": "assert", "model": "res.company", "target": {"$ref": "base.main_company"},
+     "expect": {"fields": {"po_double_validation": {"eq": "two_step"}, "po_double_validation_amount": {"eq": 50000}}}}
+  ],
+  "evidence": [{"label": "company_po_approval", "model": "res.company", "target": {"$ref": "base.main_company"},
+                "fields": ["name", "po_double_validation", "po_double_validation_amount"], "screenshot": false}]
+}
