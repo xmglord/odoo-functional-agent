@@ -1,6 +1,7 @@
 {
   "name": "xmglord",
   "owner": {"name": "xmglord"},
+  "description": "Claude Code plugin that plans, applies and tests Odoo 20 functional configuration on local demo databases.",
   "plugins": [
     {
       "name": "odoo-functional-agent",
