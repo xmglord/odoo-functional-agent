@@ -96,6 +96,9 @@ flags and approved. The transcript shows the Claude Code version changing betwee
 Agent time: about 15 minutes (11 to plan, 4 to apply, test and report) and 329,637 new tokens, not counting the
 author's 5 hours 14 minutes at the review stop.
 
+Permission mode: not measured. The session transcript was deleted at cleanup, before the T26 audit showed
+that the mode, not the launch command's `--allowedTools`, decided which commands ran without a prompt.
+
 ## Requirement against tests
 
 | Need | Proved by | Gap |

@@ -72,6 +72,9 @@ No manual UI work and no functional correction: the plan the skill wrote is the 
 
 Agent time: about 18 minutes and 293,953 new tokens, not counting the author's 4 minutes at the two review stops.
 
+Permission mode: not measured. The session transcript was deleted at cleanup, before the T26 audit showed
+that the mode, not the launch command's `--allowedTools`, decided which commands ran without a prompt.
+
 ## Requirement against tests
 
 | Need | Proved by | Gap |

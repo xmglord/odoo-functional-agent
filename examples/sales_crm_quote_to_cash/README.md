@@ -67,6 +67,9 @@ anything in Odoo's interface. But the author did more than approve, and that is 
 A third v1 fail was the skill's own scenario mistake (`mail.message.tracking_value_ids` does not exist in 20.0); the
 skill fixed the search without changing the expectation.
 
+Permission mode: not measured. The session transcript was deleted at cleanup, before the T26 audit showed
+that the mode, not the launch command's `--allowedTools`, decided which commands ran without a prompt.
+
 ## Requirement against tests
 
 | Need | Proved by | Gap |
