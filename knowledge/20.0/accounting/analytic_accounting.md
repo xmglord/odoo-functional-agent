@@ -3,8 +3,8 @@ title: Analytic accounting (plans, accounts, distributions)
 area: accounting
 odoo_version: 20.0
 edition: community
-source: [odoo/addons/analytic/models/analytic_plan.py@20.0, odoo/addons/analytic/models/analytic_account.py@20.0, odoo/addons/analytic/models/analytic_distribution_model.py@20.0, odoo/addons/analytic/models/analytic_mixin.py@20.0, odoo/addons/analytic/models/res_config_settings.py@20.0, odoo/addons/analytic/security/analytic_security.xml@20.0, odoo/addons/account/models/account_analytic_plan.py@20.0, odoo/addons/account/models/account_analytic_distribution_model.py@20.0, odoo/addons/account/models/account_move_line.py@20.0, odoo/addons/account/models/res_config_settings.py@20.0]
-verified_on: 2026-10-26
+source: [odoo/addons/analytic/models/analytic_plan.py@20.0, odoo/addons/analytic/models/analytic_account.py@20.0, odoo/addons/analytic/models/analytic_distribution_model.py@20.0, odoo/addons/analytic/models/analytic_mixin.py@20.0, odoo/addons/analytic/models/res_config_settings.py@20.0, odoo/addons/analytic/security/analytic_security.xml@20.0, odoo/addons/account/models/account_analytic_plan.py@20.0, odoo/addons/account/models/account_analytic_distribution_model.py@20.0, odoo/addons/account/models/account_move_line.py@20.0, odoo/addons/account/models/res_config_settings.py@20.0, odoo/addons/account/views/account_move_views.xml@20.0, odoo/addons/account/wizard/account_validate_move_view.xml@20.0]
+verified_on: 2026-10-28
 verified_against: [source, live]
 modules: [analytic, account]
 models: [account.analytic.plan, account.analytic.account, account.analytic.applicability, account.analytic.distribution.model, account.analytic.line, account.move.line, res.config.settings]
@@ -15,8 +15,9 @@ settings: [group_analytic_accounting]
 - If management wants profit or cost **per project, department, branch, campaign** (dimensions that are not
   accounts in the chart), use analytic accounting: each dimension is an analytic **plan**, each value an analytic
   **account**, and journal items carry a percentage **distribution** over those accounts.
-- If every expense must be assigned to a department, make that plan `mandatory` for bills, because posting then
-  fails until the line has a 100% distribution.
+- If every expense must be assigned to a department, make that plan `mandatory` for bills: the Post and Confirm
+  buttons then refuse a line without a 100% distribution. Only the buttons enforce it (see Pitfalls); an import,
+  an automation or an API call posts the line anyway.
 - If a customer, product or product category always goes to the same analytic account, use a **distribution model**
   so the distribution is filled automatically.
 - If the requirement is legal reporting (balance sheet, tax), analytic is the wrong tool: use accounts.
@@ -57,8 +58,15 @@ settings: [group_analytic_accounting]
   got `AccessError` reading `account.analytic.plan` ("allowed for the following groups: Analytic Accounting, Show
   Full Accounting Features" = `account.group_account_user`), while `account.analytic.account` was readable. Enable
   `group_analytic_accounting` before plans or scenarios touch plans.
-- A `mandatory` plan blocks posting of lines without a full distribution ("One or more lines require a 100%
-  analytic distribution.", `_validate_analytic_distribution`, for `product` lines only).
+- **A `mandatory` plan is enforced by the buttons only.** `_validate_distribution` checks mandatory plans only when
+  the context carries `validate_analytic=True` (`odoo/addons/analytic/models/analytic_mixin.py@20.0`). The Post and
+  Confirm buttons of the move form and the "Post entries" wizard send it
+  (`odoo/addons/account/views/account_move_views.xml@20.0`,
+  `odoo/addons/account/wizard/account_validate_move_view.xml@20.0`); `action_post` without it (API, import, server
+  action) posts a line with no distribution. With it, the error is "One or more lines require a 100% analytic
+  distribution.", for `product` lines only. The line field `has_invalid_analytics` is computed with that context, so
+  it shows which lines the button would refuse (`odoo/addons/account/models/account_move_line.py@20.0`). Same in 19.0.
+  Found live in the T25 example: a clerk's invoice without project or department posted through `ofa`.
 - Archived analytic accounts block posting ("You cannot post an entry with an archived analytic account").
 - The distribution keys are ids, not names or codes: a plan cannot write a distribution with `$ref` inside a JSON
   key. Create the analytic accounts first, then write the distribution in a later step with the ids read back, or
