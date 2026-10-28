@@ -147,3 +147,6 @@ these first.
   `intercompany_warehouse_id` and `intercompany_receipt_type_id` and their settings fields are gone; the generated
   documents are created as the superuser in the receiving company
   (`enterprise/account_inter_company_rules/models/account_move.py@20.0`).
+- **A currency rate applies from the day after its date.** `res.currency._get_rates` looks up the latest rate with
+  `name < date`, where 19.0 used `name <= date` (`odoo/odoo/addons/base/models/res_currency.py@20.0`). A rate dated
+  the same day as a document is not used for that document.

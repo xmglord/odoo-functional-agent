@@ -4,7 +4,7 @@ area: accounting
 odoo_version: 20.0
 edition: community
 source: [odoo/odoo/addons/base/models/res_currency.py@20.0, odoo/addons/base_setup/models/res_config_settings.py@20.0, odoo/addons/account/models/res_config_settings.py@20.0, odoo/addons/account/models/company.py@20.0, odoo/addons/account/models/account_move.py@20.0, odoo/addons/account/models/account_move_line.py@20.0, odoo/addons/account/models/account_partial_reconcile.py@20.0, enterprise/currency_rate_live/models/res_config_settings.py@20.0, enterprise/currency_rate_live/views/service_cron_data.xml@20.0]
-verified_on: 2026-10-26
+verified_on: 2026-10-28
 verified_against: [source, live]
 modules: [base, account, currency_rate_live]
 models: [res.currency, res.currency.rate, res.company, account.move, account.move.line, account.journal, account.partial.reconcile, res.config.settings]
@@ -63,6 +63,11 @@ settings: [group_multi_currency, currency_exchange_journal_id, income_currency_e
   unit of this currency", but the computed `rate_string` is "1 <company currency> = <rate> <currency>" and the live
   values above follow that. Write `company_rate` (units of the currency per 1 company-currency unit) or
   `inverse_company_rate` (the other way round) deliberately, and read the result back.
+- **A rate applies from the day after its date.** `res.currency._get_rates` takes the latest rate with
+  `name < date` (`odoo/odoo/addons/base/models/res_currency.py@20.0`; 19.0 used `<=`). A rate dated the same day as
+  an invoice or a payment is not used for it; the previous rate is. A scenario that creates its own rates must date
+  them at least one day before the documents. Found live in the T25 example: an EUR invoice dated 2026-09-01 took
+  the old demo rate, not the rate dated 2026-09-01.
 - Rates are per company root (`company_id`); a rate with no company applies to all. Two rates for the same currency,
   company and date are rejected ("Only one currency rate per day allowed!", unique index `_unique_name_per_day`).
 - With `max_cron_threads = 0` on demo targets, `currency_rate_live.ir_cron_currency_update` never runs. Call
