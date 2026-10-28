@@ -103,7 +103,10 @@ class Sim:
             rows = [(i, r) for i, r in table.items() if _match(r, p["domain"])]
             return [{"id": i, **{f: self._out(f, r.get(f)) for f in p["fields"]}} for i, r in rows]
         if method == "search":
-            ids = [i for i, r in table.items() if _match(r, p["domain"])]
+            # Like Odoo: archived records are left out unless the context says active_test False.
+            archived_too = (req.context or {}).get("active_test") is False
+            ids = [i for i, r in table.items()
+                   if _match({"id": i, **r}, p["domain"]) and (archived_too or r.get("active", True))]
             return ids[:p["limit"]] if p.get("limit") else ids
         if method == "search_count":
             return len([i for i, r in table.items() if _match({"id": i, **r}, p["domain"])])
@@ -355,6 +358,16 @@ class ExecutorTest(ExecutorCase):
         self.assertIn("group_discount_per_so_line did not hold after saving the settings", op["error"])
         self.assertFalse(sim.settings["group_discount_per_so_line"])
 
+    def test_match_finds_an_archived_record_and_activates_it_only_when_asked(self):
+        # T25: the demo's EUR was archived; the match missed it and the op tried to create a second currency.
+        sim = self.sim()
+        sim.tables["res.partner.category"][90] = {"name": "Smoke VIP", "color": 2, "active": False}
+        rec = self.apply()
+        self.assertEqual(rec["ops"][2]["status"], "failed")
+        self.assertTrue(rec["ops"][2]["error"].startswith("MATCH_ARCHIVED: "), rec["ops"][2]["error"])
+        self.assertEqual(len(sim.tables["res.partner.category"]), 1)  # nothing created next to it
+        self.assertFalse([d for d in sim.tables["ir.model.data"].values() if d["name"] == "smoke_vip_tag"])
+
     def test_match_not_unique_fails(self):
         sim = self.sim()
         sim.tables["res.partner.category"].update({90: {"name": "Smoke VIP"}, 91: {"name": "Smoke VIP"}})
@@ -368,7 +381,9 @@ class ExecutorTest(ExecutorCase):
         ctxs = [c[4] for c in sim.calls if c[0] == "res.config.settings"]
         self.assertTrue(ctxs)
         self.assertTrue(all(ctx == {"allowed_company_ids": [1]} for ctx in ctxs))
-        self.assertTrue(all(c[4] is None for c in sim.calls if c[0] == "res.partner.category"))
+        # No company on that op: no company context; only the match search adds active_test.
+        self.assertEqual({json.dumps(c[4]) for c in sim.calls if c[0] == "res.partner.category"},
+                         {"null", '{"active_test": false}'})
 
     def test_failure_stops_the_run_and_error_is_clean(self):
         sim = self.sim()

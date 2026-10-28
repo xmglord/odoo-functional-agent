@@ -185,11 +185,18 @@ def _upsert_record(client, op, ctx):
         return "updated", [res_id]
     match = op.get("match")
     if match:
-        ids = client.call(model, "search", domain=refs.resolve(client, match, {}), limit=2, context=ctx)
+        # A match names a concrete record, archived or not (T25: the demo's EUR is archived, and the default
+        # search missed it and tried to create a second EUR).
+        ids = client.call(model, "search", domain=refs.resolve(client, match, {}), limit=2,
+                          context={**(ctx or {}), "active_test": False})
         if len(ids) > 1:
             raise ValidationError("MATCH_NOT_UNIQUE", f"match finds more than one {model}; make it stricter")
         if len(ids) == 1:
             res_id = ids[0]
+            if values.get("active") is not True and \
+                    not client.call(model, "search", domain=[["id", "=", res_id]], limit=1, context=ctx):
+                raise ValidationError("MATCH_ARCHIVED", f"match found an archived {model} ({res_id}); set active in "
+                                      "values or make the match stricter")
             # Refuse a role a test user must not get before the key marks it as the plan's role.
             _test_user_before_write(client, model, res_id, values)
             refs.store_ofa(client, key, model, res_id)

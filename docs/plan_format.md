@@ -129,6 +129,10 @@ it with `{"$ref": "__ofa__.<key>"}`.
 - The key does not exist and the optional `match` domain finds exactly one record: that record gets the
   key and is brought to `values`, `adopted`. When `match` finds more than one record the operation fails;
   make the domain stricter.
+- `match` also finds archived records (it searches with `active_test` off): it names a concrete record, archived
+  or not, such as a currency the template ships inactive. Adopting an archived record needs `"active": true` in
+  `values`, which reactivates it; otherwise the operation fails with `MATCH_ARCHIVED` instead of keying a record
+  nobody sees.
 - Otherwise the record is created and gets the key, `created`.
 
 When the created record is a `res.company`, `ofa` also adds it to its own bot user's companies, so later

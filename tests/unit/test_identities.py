@@ -33,7 +33,8 @@ class IdentityCase(FakeCase):
         f = self.fake
         f.script("ir.model.data", "search_read", self._imd)
         f.script("res.users", "search",
-                 lambda req: [u for u, login in USERS.items() if ["login", "=", login] in req.params["domain"]])
+                 lambda req: [u for u, login in USERS.items()
+                              if ["login", "=", login] in req.params["domain"] or ["id", "=", u] in req.params["domain"]])
         f.script("res.users", "read", self._read_users)
         f.script("res.users", "write", self._write_users)
         f.script("res.groups", "read", lambda req: [{"id": g, "all_implied_ids": IMPLIED[g]} for g in req.ids])
