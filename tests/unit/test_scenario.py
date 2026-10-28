@@ -291,6 +291,7 @@ class ExpectErrorTest(FakeCase):
     def run_write(self, response, expect_error=None, values=None):
         self.fake.script("account.tax", "write", response)
         self.fake.script("account.tax", "read", [{"id": 1, "amount": 15}])
+        self.fake.script("account.tax", "fields_get", {"amount": {"type": "float"}, "name": {"type": "char"}})
         spec = expect_error or {"class": "AccessError", "message_contains": "not allowed to modify 'Tax'"}
         result, _, _ = scenario.run(self.open(), self.scenario({"values": values or {"amount": 10},
                                                                 "expect_error": spec}))
@@ -317,12 +318,20 @@ class ExpectErrorTest(FakeCase):
                 self.assertEqual(result["status"], "fail", result)
                 self.assertIn("refused with", result["steps"][0]["message"])
 
-    def test_misspelled_field_is_a_scenario_error_not_a_pass(self):
-        # A ValueError mentioning the declared text still is not Odoo refusing the operation.
-        bad = Response(500, error_body("builtins.ValueError", "Invalid field 'amonut' on model 'account.tax'"))
-        result = self.run_write(bad, {"class": "AccessError", "message_contains": "amonut"}, {"amonut": 10})
+    def test_non_business_exception_is_a_scenario_error_not_a_pass(self):
+        # A ValueError carrying the declared text still is not Odoo refusing the operation.
+        bad = Response(500, error_body("builtins.ValueError", "Wrong value for name: not allowed to modify 'Tax'"))
+        result = self.run_write(bad, values={"name": 10})
         self.assertEqual(result["status"], "error", result)
         self.assertEqual(result["steps"][1]["status"], "skipped")
+
+    def test_misspelled_field_refused_for_access_is_still_an_error(self):
+        # Odoo checks access before field names: a clerk's write with a typo comes back as the expected AccessError.
+        refused = Response(403, error_body("odoo.exceptions.AccessError", "You are not allowed to modify 'Tax'"))
+        result = self.run_write(refused, values={"amonut": 10})
+        self.assertEqual(result["status"], "error", result)
+        self.assertIn("amonut: no such field on account.tax", result["steps"][0]["message"])
+        self.assertEqual(self.fake.calls("account.tax", "write"), [])
 
     def test_unresolved_reference_is_a_scenario_error(self):
         self.fake.script("ir.model.data", "search_read", [])

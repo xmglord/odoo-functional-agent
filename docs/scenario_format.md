@@ -142,6 +142,10 @@ closed month. Give that step `expect_error`:
   `ofa_bot` and the test users are created with `lang` `en_US`, and `ofa apply` refuses to change it.
 - Only on `create`, `write`, `call` and `read`, and not together with `expect` or `save_as`: a refused call leaves
   nothing to check or save.
+- Before the call, `ofa` checks as the bot that every field the step names exists: the keys of `values` (and of
+  `$create` lines one level down) and `fields`. Odoo checks access rights before field names, so a misspelled field
+  in a refused write would otherwise come back as the expected `AccessError` and pass. An unknown field is an `error`.
+  Method parameters of a `call` are not checked.
 
 The step's status:
 

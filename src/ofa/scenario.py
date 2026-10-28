@@ -302,6 +302,34 @@ class ScenarioBroken(Exception):
     """The scenario itself is wrong (a bad field, an unresolved reference): an error, never the expected refusal."""
 
 
+def _check_field_names(client, step):
+    """Before an expected refusal: every field the step names exists, as seen by the bot.
+
+    Odoo checks access before field names, so a misspelled field in a refused write would come back as the expected
+    AccessError and pass. Checks `values` (and one level of `$create` lines) and `fields`.
+    """
+    def unknown(model, names):
+        try:
+            known = client.call(model, "fields_get", attributes=["type", "relation"])
+        except OfaError as e:
+            raise ScenarioBroken(safe_message(e)) from None
+        missing = sorted(n for n in names if n not in known)
+        if missing:
+            raise ScenarioBroken(f"{', '.join(missing)}: no such field on {model}")
+        return known
+
+    model = step["model"]
+    if step["action"] == "read":
+        unknown(model, step["fields"])
+    values = step.get("values") or {}
+    if values:
+        known = unknown(model, values)
+        for name, value in values.items():
+            lines = value.get("$create") if isinstance(value, dict) else None
+            if lines and known[name].get("relation"):
+                unknown(known[name]["relation"], {k for line in lines if isinstance(line, dict) for k in line})
+
+
 def _expect_refusal(spec, run):
     """Run `run()`, which must be refused by Odoo with spec's class and text. Returns the pass message.
 
@@ -539,6 +567,7 @@ def _run_steps(client, steps, vars, failure_status, company=None, users=None, as
             resolver = in_company(client, spec, vars)
             actor = in_company(client, spec, vars, user) if user else None
             if "expect_error" in step:
+                _check_field_names(client, step)
                 message = _expect_refusal(step["expect_error"], lambda: _run_step(resolver, step, vars, actor))
                 results.append({"id": step["id"], "status": PASS, "message": message,
                                 "records": _last_records(step, vars)})
