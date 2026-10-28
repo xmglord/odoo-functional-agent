@@ -22,6 +22,8 @@ CALLS_JSONL = "calls.jsonl"
 TEST_HISTORY = "test_history.jsonl"
 REPORT_MD = "report.md"
 SCREENSHOTS = "screenshots"
+FILES = "files"
+FILES_KEY = "_files"
 CALL_LOG_KEYS = ("ts", "model", "method", "ids", "duration_ms", "status")
 
 
@@ -206,7 +208,9 @@ def render(run_dir, plan_dir=None):
 
     lines += ["## Evidence", ""]
     shot_labels = {(s.get("scenario"), s.get("label")) for s in shots}
-    items = [(sc, label) for sc in sorted(records) for label in sorted(records[sc] or {})]
+    items = [(sc, label) for sc in sorted(records) for label in sorted(records[sc] or {}) if label != FILES_KEY]
+    saved = [(sc, label, path) for sc in sorted(records) for label, path in sorted(((records[sc] or {}).get(FILES_KEY)
+                                                                                    or {}).items())]
     if items:
         for sc, label in items:
             entry = f"- {_cell(sc)} / {_cell(label)}: [records]({RECORDS_JSON})"
@@ -219,6 +223,8 @@ def render(run_dir, plan_dir=None):
             lines.append(entry)
     else:
         lines.append("No evidence in this run.")
+    for sc, label, path in saved:
+        lines.append(f"- {_cell(sc)} / {_cell(label)}: [file]({path}), saved by a check step")
     lines.append("")
     return "\n".join(lines)
 
@@ -227,6 +233,24 @@ def write_report(run_dir, plan_dir=None):
     path = Path(run_dir) / REPORT_MD
     path.write_text(render(run_dir, plan_dir), encoding="utf-8")
     return path
+
+
+def _write_files(run_dir, records):
+    """Files saved by `check` steps go to files/<scenario>_<label>.<ext>; records.json keeps their paths."""
+    out = {}
+    for sc, ev in records.items():
+        ev = dict(ev)
+        saved = ev.pop(FILES_KEY, None) or {}
+        if saved:
+            (run_dir / FILES).mkdir(exist_ok=True)
+            paths = {}
+            for label, f in saved.items():
+                name = f"{sc}_{label}.{f['ext']}"
+                (run_dir / FILES / name).write_text(f["text"], encoding="utf-8")
+                paths[label] = f"{FILES}/{name}"
+            ev[FILES_KEY] = paths
+        out[sc] = ev
+    return out
 
 
 def write_test_run(run_dir, run_id, target, results, records, shots, call_log, plan_dir=None):
@@ -241,7 +265,7 @@ def write_test_run(run_dir, run_id, target, results, records, shots, call_log, p
     kept_results = [sc for sc in earlier.get("scenarios") or [] if sc.get("id") not in rerun]
     write_json(run_dir / TEST_JSON, {"run_id": run_id, "target": target, "scenarios": kept_results + list(results)})
     kept_records = {sc: ev for sc, ev in (_load(run_dir / RECORDS_JSON) or {}).items() if sc not in rerun}
-    write_json(run_dir / RECORDS_JSON, {**kept_records, **records})
+    write_json(run_dir / RECORDS_JSON, {**kept_records, **_write_files(run_dir, records)})
     kept_shots = [s for s in _load(run_dir / SHOTS_JSON) or [] if s.get("scenario") not in rerun]
     write_json(run_dir / SHOTS_JSON, kept_shots + list(shots))
     append_test_history(run_dir, results)

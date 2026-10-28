@@ -24,6 +24,7 @@ ofa test [--plan-dir D] [--run RUN_ID] --target N SCENARIO.json...
 | `test_history.jsonl` | `ofa test` | one line per `ofa test` invocation into this run: `{"at", "scenarios"}` with that invocation's scenario results; appended |
 | `report.md` | `ofa test` | human summary, regenerated from the files above |
 | `screenshots/<scenario>_<label>.png` | the skill | screenshots of the `screenshot_targets.json` entries, best effort |
+| `files/<scenario>_<file>.<ext>` | `ofa test` | text a `check` step saved with `file` (an exported XML); `records.json` keeps its path under the scenario's `_files` |
 
 A run accumulates per scenario. Each `ofa test` into the same run replaces, in `test.json`, `records.json` and
 `screenshot_targets.json`, only the scenarios it ran; the other scenarios' results, evidence and screenshot targets

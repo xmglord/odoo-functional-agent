@@ -112,10 +112,11 @@ and `model`, and may have `company` (see Company context).
 |---|---|---|---|
 | `create` | `values` | `save_as`, `expect_error` | `create` with `vals_list=[values]`; `save_as` stores the new id |
 | `write` | `target`, `values` | `expect_error` | `write` with `ids=[target...]`, `vals=values` |
-| `call` | `target`, `method` | `params`, `wizards`, `expect_error` | the record method with `ids=[target...]` and `params` as named arguments, following wizards |
+| `call` | `target`, `method` | `params`, `wizards`, `expect_error`, `save_as` | the record method with `ids=[target...]` and `params` as named arguments, following wizards; `save_as` stores what it returns |
 | `search` | `domain` | `limit`, `save_as`, `expect` (`count` only) | `search`; `save_as` stores the id list |
 | `read` | `target`, `fields` | `save_as`, `expect`, `expect_error` | `read`; `save_as` stores the rows |
 | `assert` | `target`, `expect` (with `fields`) | | `read` of the fields named in `expect.fields` |
+| `check` | `value`, `expect` | `path`, `decode`, `xml`, `file` | none: asserts on what an earlier `call` saved (see Checking a saved result) |
 
 `target` must resolve to one record id or a non-empty list of ids.
 
@@ -160,6 +161,33 @@ The step's status:
 Each JSON-2 call is its own transaction, so a refused call leaves nothing behind. The scenario goes on after a
 passing `expect_error` step: read back that nothing changed (the tax still at 15, no entry created), because the
 refusal alone does not show that.
+
+### Checking a saved result
+
+Some outputs are not records: a report's options, or the file a report exports (the SAT chart of accounts and trial
+balance). A `call` with `save_as` stores what the method returns, and a later `call` can pass it on
+(`"params": {"options": {"$var": "opts"}}`). A `check` step, which has no `model` and makes no Odoo call, asserts on
+it:
+
+```json
+{"id": "s030", "action": "call", "model": "account.report", "target": {"$ref": "account_reports.trial_balance_report"},
+ "method": "dispatch_report_action", "params": {"options": {"$var": "opts"}, "action": "action_l10n_mx_generate_coa_sat_xml"},
+ "save_as": "coa"},
+{"id": "s040", "action": "check", "value": {"$var": "coa"}, "path": "file_content",
+ "xml": {"xpath": ".", "attribute": "RFC"}, "expect": {"value": {"eq": ["IVD920810GU2"]}}, "file": "chart_of_accounts"}
+```
+
+- `value` is `{"$var": name}`. `path` walks into it with dots (`file_content`, `column_groups.0`).
+- `decode: "base64"` decodes base64 text first. Measured on 20.0: the SAT exports' `file_content` arrives over JSON-2
+  as plain XML text, not base64, so those need no `decode`.
+- `xml` parses the text: `xpath` (ElementTree syntax, `.` for the root, prefixes from `ns`) selects elements and
+  yields their texts, or the `attribute` of each. A document with a DOCTYPE or entity declaration is refused.
+- `expect` has `count` (length of the list or text) and/or `value` (the usual operators on the list or value).
+- `file` saves the checked text in the run as `files/<scenario>_<file>.xml` (or `.txt`), as evidence.
+- A `path` or variable that does not exist, a value that does not decode or parse, or one over 5 MB is an `error`
+  (the scenario is wrong), never a pass; an expectation that does not hold is a `fail`.
+- Scope: use it for files a report exports and for report options. A business result a user sees is a record field:
+  check it with `assert`, not by calling a method and reading what it returns.
 
 ## Value references
 

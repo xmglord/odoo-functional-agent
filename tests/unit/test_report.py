@@ -240,3 +240,14 @@ class RenderTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SavedFilesTest(unittest.TestCase):
+    def test_check_files_go_to_files_dir_and_records_keep_the_path(self):
+        run = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, run)
+        report.write_test_run(run, run.name, "t1", [{"id": "sat", "status": "pass", "steps": []}],
+                              {"sat": {"_files": {"coa": {"ext": "xml", "text": "<x/>"}}}}, [], [])
+        self.assertEqual((run / "files" / "sat_coa.xml").read_text(), "<x/>")
+        self.assertEqual(json.loads((run / "records.json").read_text()), {"sat": {"_files": {"coa": "files/sat_coa.xml"}}})
+        self.assertIn("sat / coa: [file](files/sat_coa.xml)", (run / "report.md").read_text())

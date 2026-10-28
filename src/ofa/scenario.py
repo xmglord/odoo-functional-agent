@@ -3,9 +3,12 @@
 `load(path)` parses and validates a scenario file without touching Odoo.
 `run(client, scenario)` runs one validated scenario and returns its C9 result.
 """
+import base64
+import binascii
 import json
 import re
 from pathlib import Path
+from xml.etree import ElementTree
 
 from ofa import client as clientmod, identities, refs, wizards
 from ofa.errors import EnvError, GuardError, OdooError, OfaError, ValidationError
@@ -27,11 +30,15 @@ STEP_OPTIONAL = ("company", "as")
 ACTIONS = {
     "create": (("values",), ("save_as", "expect_error")),
     "write": (("target", "values"), ("expect_error",)),
-    "call": (("target", "method"), ("params", "wizards", "expect_error")),
+    "call": (("target", "method"), ("params", "wizards", "expect_error", "save_as")),
     "search": (("domain",), ("limit", "save_as", "expect")),
     "read": (("target", "fields"), ("save_as", "expect", "expect_error")),
     "assert": (("target", "expect"), ()),
+    # check makes no Odoo call: it asserts on what an earlier call saved (a report's options or exported file).
+    "check": (("value", "expect"), ("path", "decode", "xml", "file")),
 }
+NO_MODEL_ACTIONS = ("check",)
+CHECK_MAX_BYTES = 5 * 1024 * 1024
 # expect_error: the call must be refused with exactly this Odoo exception class and a message containing the text.
 ERROR_CLASSES = ("AccessError", "UserError", "ValidationError", "MissingError", "RedirectWarning")
 ODOO_EXCEPTIONS = "odoo.exceptions."
@@ -140,6 +147,33 @@ def _check_users(users, where):
                 _check_ref(item, f"{at}.{key}[{i}]", "a record")
 
 
+def _check_check(step, where):
+    value = step["value"]
+    if not (isinstance(value, dict) and set(value) == {"$var"}):
+        raise _bad(f"{where}.value", 'must be {"$var": name} of an earlier call or read')
+    if "path" in step:
+        _check_str(step["path"], f"{where}.path")
+    if "decode" in step and step["decode"] != "base64":
+        raise _bad(f"{where}.decode", 'must be "base64"')
+    if "xml" in step:
+        _check_keys(step["xml"], f"{where}.xml", ("xpath",), ("ns", "attribute"))
+        _check_str(step["xml"]["xpath"], f"{where}.xml.xpath")
+        ns = step["xml"].get("ns", {})
+        if not isinstance(ns, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in ns.items()):
+            raise _bad(f"{where}.xml.ns", "must be an object {prefix: namespace uri}")
+        if "attribute" in step["xml"]:
+            _check_str(step["xml"]["attribute"], f"{where}.xml.attribute")
+    if "file" in step:
+        _check_str(step["file"], f"{where}.file", ID_RE)
+    _check_keys(step["expect"], f"{where}.expect", (), ("count", "value"))
+    if not step["expect"]:
+        raise _bad(f"{where}.expect", "is empty")
+    if "count" in step["expect"] and not _is_int(step["expect"]["count"]):
+        _check_op_object(step["expect"]["count"], f"{where}.expect.count")
+    if "value" in step["expect"]:
+        _check_op_object(step["expect"]["value"], f"{where}.expect.value")
+
+
 def _check_expect_error(step, where):
     spec = step["expect_error"]
     _check_keys(spec, where, ("class", "message_contains"), ())
@@ -162,13 +196,19 @@ def _check_steps(steps, where, seen_ids, user_names=()):
         if action not in ACTIONS:
             raise _bad(at, f"action must be one of {', '.join(ACTIONS)}")
         required, optional = ACTIONS[action]
-        _check_keys(step, at, STEP_COMMON + required, optional + STEP_OPTIONAL)
+        if action in NO_MODEL_ACTIONS:
+            _check_keys(step, at, ("id", "action") + required, optional)
+        else:
+            _check_keys(step, at, STEP_COMMON + required, optional + STEP_OPTIONAL)
         _check_str(step["id"], f"{at}.id", ID_RE)
         if step["id"] in seen_ids:
             raise _bad(at, f"duplicate step id {step['id']!r}")
         if step["id"] in (REQUIRES_STEP, IDENTITIES_STEP):
             raise _bad(at, f"step id {step['id']!r} is reserved")
         seen_ids.add(step["id"])
+        if action == "check":
+            _check_check(step, f"{where}[{step['id']}]")
+            continue
         _check_str(step["model"], f"{at}.model")
         at = f"{where}[{step['id']}]"
         if "company" in step:
@@ -506,6 +546,58 @@ class _Identities:
         return [self.used[login] for login in sorted(self.used)]
 
 
+def _check_value(step, vars, files):
+    """Assert on a saved call result (C8 `check`). Raises StepFailed, or ScenarioBroken when the step is wrong."""
+    name = step["value"]["$var"]
+    if name not in vars:
+        raise ScenarioBroken(f"variable {name!r} is not set")
+    value = vars[name]
+    for key in step["path"].split(".") if "path" in step else []:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        elif isinstance(value, list) and key.isdigit() and int(key) < len(value):
+            value = value[int(key)]
+        else:
+            raise ScenarioBroken(f"path {step['path']!r}: no {key!r} in the value of {name}")
+    if "decode" in step:
+        if not isinstance(value, str):
+            raise ScenarioBroken(f"decode base64 needs text, got {type(value).__name__}")
+        try:
+            value = base64.b64decode(value, validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError) as e:
+            raise ScenarioBroken(f"not base64-encoded UTF-8 text: {e}") from None
+    if isinstance(value, str) and len(value.encode("utf-8")) > CHECK_MAX_BYTES:
+        raise ScenarioBroken(f"value is over {CHECK_MAX_BYTES // (1024 * 1024)} MB")
+    text = value
+    if "xml" in step:
+        spec = step["xml"]
+        if not isinstance(value, str):
+            raise ScenarioBroken(f"xml needs text, got {type(value).__name__}")
+        if "<!DOCTYPE" in value or "<!ENTITY" in value:
+            raise ScenarioBroken("XML with a DOCTYPE or entity declaration is refused")
+        try:
+            root = ElementTree.fromstring(value.encode("utf-8"))
+            found = root.findall(spec["xpath"], spec.get("ns") or {}) if spec["xpath"] != "." else [root]
+        except (ElementTree.ParseError, SyntaxError, KeyError) as e:
+            raise ScenarioBroken(f"xml: {e}") from None
+        if "attribute" in spec:
+            value = [el.get(spec["attribute"]) for el in found if el.get(spec["attribute"]) is not None]
+        else:
+            value = [(el.text or "").strip() for el in found]
+    if "file" in step:
+        if not isinstance(text, str):
+            raise ScenarioBroken("file needs text")
+        files[step["file"]] = ("xml" if "xml" in step else "txt", text)
+    expect = step["expect"]
+    if "count" in expect:
+        if not isinstance(value, (list, str, dict)):
+            raise ScenarioBroken(f"count needs a list, got {type(value).__name__}")
+        spec = expect["count"]
+        check_ops({"eq": spec} if _is_int(spec) else spec, len(value), f"{step['id']} count")
+    if "value" in expect:
+        check_ops(expect["value"], value, f"{step['id']} value")
+
+
 def _run_step(client, step, vars, actor=None):
     """Run one step and return its {"model", "ids"} records. Raises StepFailed or OfaError.
 
@@ -538,7 +630,9 @@ def _run_step(client, step, vars, actor=None):
         actor.call(model, "write", ids=ids, vals=refs.resolve(client, step["values"], vars))
     elif action == "call":
         params = refs.resolve(client, step.get("params") or {}, vars)
-        wizards.call_following(actor, model, step["method"], ids, params=params, wizards=step.get("wizards"))
+        result = wizards.call_following(actor, model, step["method"], ids, params=params, wizards=step.get("wizards"))
+        if "save_as" in step:
+            vars[step["save_as"]] = result
     elif action in ("read", "assert"):
         fields = step["fields"] if action == "read" else list(step["expect"]["fields"])
         rows = actor.call(model, "read", ids=ids, fields=fields)
@@ -549,7 +643,7 @@ def _run_step(client, step, vars, actor=None):
     return records
 
 
-def _run_steps(client, steps, vars, failure_status, company=None, users=None, as_=None):
+def _run_steps(client, steps, vars, failure_status, company=None, users=None, as_=None, files=None):
     """Run steps until the first failure. Returns (status, results).
 
     `company` and `as_` are the scenario-level specs; a step's own `company` and `as` override them.
@@ -559,9 +653,13 @@ def _run_steps(client, steps, vars, failure_status, company=None, users=None, as
     status = PASS
     for step in steps:
         if status != PASS:
-            results.append({"id": step["id"], "status": SKIPPED, "message": "", "records": {"model": step["model"], "ids": []}})
+            results.append({"id": step["id"], "status": SKIPPED, "message": "", "records": {"model": step.get("model", ""), "ids": []}})
             continue
         try:
+            if step["action"] == "check":
+                _check_value(step, vars, files if files is not None else {})
+                results.append({"id": step["id"], "status": PASS, "message": "", "records": {"model": "", "ids": []}})
+                continue
             spec = step.get("company", company)
             user = users.actor(step.get("as", as_), vars) if users else None
             resolver = in_company(client, spec, vars)
@@ -598,7 +696,7 @@ def _last_records(step, vars):
             ids = [value]
         elif isinstance(value, list) and all(_is_int(v) for v in value):
             ids = list(value)
-    return {"model": step["model"], "ids": ids}
+    return {"model": step.get("model", ""), "ids": ids}
 
 
 def _check_requires(client, scenario):
@@ -641,7 +739,8 @@ def run(client, scenario):
             status = ERROR
             steps_out.append({"id": IDENTITIES_STEP, "status": ERROR, "message": safe_message(e),
                               "records": {"model": identities.USERS_MODEL, "ids": []}})
-    scope = {"company": scenario.get("company"), "users": users, "as_": scenario.get("as")}
+    files = {}
+    scope = {"company": scenario.get("company"), "users": users, "as_": scenario.get("as"), "files": files}
     if status == PASS and scenario.get("preconditions"):
         # A failing precondition means the scenario could not be set up: error, not fail.
         status, results = _run_steps(client, scenario["preconditions"], vars, ERROR, **scope)
@@ -651,12 +750,14 @@ def run(client, scenario):
         steps_out += results
     else:
         done = {s["id"] for s in steps_out}
-        steps_out += [{"id": s["id"], "status": SKIPPED, "message": "", "records": {"model": s["model"], "ids": []}}
+        steps_out += [{"id": s["id"], "status": SKIPPED, "message": "", "records": {"model": s.get("model", ""), "ids": []}}
                       for s in (scenario.get("preconditions") or []) + scenario["steps"] if s["id"] not in done]
     evidence, shots = ({}, []) if status == ERROR else collect_evidence(client, scenario, vars)
     result = {"id": scenario["id"], "status": status, "steps": steps_out}
     if users.used:
         result["identities"] = users.report()
+    if files:
+        evidence = {**evidence, "_files": {label: {"ext": ext, "text": text} for label, (ext, text) in files.items()}}
     return result, evidence, shots
 
 

@@ -85,7 +85,7 @@ class LoadTest(unittest.TestCase):
             (lambda d: d.update(steps=[]), "non-empty list"),
             (lambda d: d["steps"][0].update(action="delete"), "action must be"),
             (lambda d: d["steps"][1].pop("method"), "missing method"),
-            (lambda d: d["steps"][1].update(save_as="x"), "unknown key save_as"),
+            (lambda d: d["steps"][5].update(save_as="x"), "unknown key save_as"),  # write; call may save_as
             (lambda d: d["steps"][1].update(id="s010"), "duplicate step id"),
             (lambda d: d["preconditions"][0].update(id="s010"), "duplicate step id"),
             (lambda d: d["steps"][0].update(id="requires"), "reserved"),
@@ -358,3 +358,71 @@ class ExpectErrorTest(FakeCase):
         with self.assertRaises(ValidationError) as cm:
             scenario.validate(data)
         self.assertIn("drop save_as", cm.exception.msg)
+
+
+COA_XML = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<catalogocuentas:Catalogo xmlns:catalogocuentas="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas"'
+           ' Version="1.3" RFC="IVD920810GU2" Mes="10" Anio="2026">'
+           '<catalogocuentas:Ctas CodAgrup="102" NumCta="102" Nivel="1" Natur="D"/>'
+           '<catalogocuentas:Ctas CodAgrup="102.01" NumCta="102.01" Nivel="2" Natur="D"/>'
+           '</catalogocuentas:Catalogo>')
+NS = {"c": "http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas"}
+
+
+class CheckTest(FakeCase):
+    """check asserts on what a call saved: a report's exported file (T26 need 6)."""
+
+    def run_checks(self, checks, content=COA_XML):
+        self.fake.script("account.report", "dispatch_report_action",
+                         {"file_name": "x.xml", "file_type": "xml", "file_content": content})
+        data = {"format": "ofa.scenario/1", "id": "sat", "area": "l10n_mx", "odoo_version": "20.0",
+                "edition": "community", "description": "x",
+                "steps": [{"id": "s010", "action": "call", "model": "account.report", "target": 1,
+                           "method": "dispatch_report_action", "params": {"options": {}, "action": "a"},
+                           "save_as": "coa"}]
+                + [{"id": f"s{20 + i}", "action": "check", "value": {"$var": "coa"}, **c} for i, c in enumerate(checks)]}
+        return scenario.run(self.open(), scenario.validate(data))
+
+    def test_xml_attributes_count_and_file(self):
+        result, evidence, _ = self.run_checks([
+            {"path": "file_content", "xml": {"xpath": ".", "attribute": "RFC"}, "expect": {"value": {"eq": ["IVD920810GU2"]}},
+             "file": "coa"},
+            {"path": "file_content", "xml": {"xpath": "c:Ctas", "ns": NS}, "expect": {"count": 2}},
+            {"path": "file_content", "xml": {"xpath": "c:Ctas[@NumCta='102.01']", "ns": NS, "attribute": "CodAgrup"},
+             "expect": {"value": {"eq": ["102.01"]}}},
+            {"path": "file_name", "expect": {"value": {"eq": "x.xml"}}},
+        ])
+        self.assertEqual(result["status"], "pass", result)
+        self.assertEqual(evidence["_files"]["coa"], {"ext": "xml", "text": COA_XML})
+
+    def test_wrong_value_fails(self):
+        result, _, _ = self.run_checks([{"path": "file_content", "xml": {"xpath": ".", "attribute": "Mes"},
+                                         "expect": {"value": {"eq": ["11"]}}}])
+        self.assertEqual(result["status"], "fail")
+
+    def test_missing_path_or_variable_is_a_scenario_error(self):
+        for check in ({"path": "file_contents", "expect": {"count": 1}},
+                      {"value": {"$var": "nope"}, "expect": {"count": 1}}):
+            with self.subTest(check=check):
+                result, _, _ = self.run_checks([check])
+                self.assertEqual(result["status"], "error", result)
+
+    def test_doctype_and_bad_base64_are_refused(self):
+        evil = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><x>&a;</x>'
+        result, _, _ = self.run_checks([{"path": "file_content", "xml": {"xpath": "."}, "expect": {"count": 1}}], evil)
+        self.assertEqual(result["status"], "error")
+        self.assertIn("DOCTYPE", result["steps"][1]["message"])
+        result, _, _ = self.run_checks([{"path": "file_content", "decode": "base64", "expect": {"count": 1}}])
+        self.assertEqual(result["status"], "error")
+
+    def test_base64_text_decodes(self):
+        import base64
+        result, _, _ = self.run_checks([{"path": "file_content", "decode": "base64", "expect": {"value": {"contains": "RFC="}}}],
+                                       base64.b64encode(COA_XML.encode()).decode())
+        self.assertEqual(result["status"], "pass", result)
+
+    def test_check_validation(self):
+        with self.assertRaises(ValidationError):
+            self.run_checks([{"model": "x", "expect": {"count": 1}}])
+        with self.assertRaises(ValidationError):
+            self.run_checks([{"decode": "hex", "expect": {"count": 1}}])
