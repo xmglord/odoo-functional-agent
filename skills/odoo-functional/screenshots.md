@@ -25,7 +25,11 @@ Every step uses only the loopback demo server. Never open any other host.
 The demo data of a provisioned database has the user `admin` with password `admin`. These credentials exist only
 in demo databases served on loopback.
 
-1. `navigate_page` to `http://127.0.0.1:8070/web/login?db=<db>`.
+1. `navigate_page` to `http://127.0.0.1:8070/web/login?db=<db>`. Then read `document.URL` with `evaluate_script`.
+   If it ends in `/web/database/selector` ("The database manager has been disabled"), the browser still holds a
+   session for a database that no longer exists, from an earlier run. That first request has already reset the
+   session: `navigate_page` to the same login URL **once** more. If it lands on the selector again, stop and say
+   so.
 2. `take_snapshot` with `selector: "form"`. Fill the email input with `admin` and the password input with
    `admin` using `fill_by_uid`.
 3. Check that both fields actually hold the values before submitting:
@@ -73,3 +77,15 @@ In `plans/<slug>/runs/<run_id>/report.md`, section `## Evidence`, each target's 
 `screenshot not taken`. For every screenshot you kept, replace that text with
 `[screenshot](screenshots/<name>)`. Leave the others as they are, and list in your reply which targets have no
 screenshot and why.
+
+## 5. Log out
+
+When the screenshots are done (or the procedure stopped after logging in), log out, so that the browser does not
+keep a session for this database: once it is dropped, that session sends the next run's login to the database
+selector.
+
+1. `evaluate_script` with
+   `() => { document.querySelector('.o_menu_systray .o_user_menu').click(); return true; }`, then
+   `() => { document.querySelector('.o-dropdown--menu .dropdown-item[data-menu="logout"]').click(); return true; }`.
+   (`/web/session/logout` answers 405 to a plain navigation: logging out is a POST.)
+2. Check that `document.URL` now contains `/web/login`. Say in your reply whether the log-out worked.
