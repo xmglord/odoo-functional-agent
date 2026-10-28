@@ -1,0 +1,359 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_haul_flow",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 4: Foods' confirmed haul purchase order to Logistics creates Logistics' draft sales order (850); once Logistics confirms, invoices and posts it, Foods gets the matching vendor bill in draft.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "purchase.order",
+   "values": {
+    "company_id": {
+     "$ref": "__ofa__.co_foods"
+    },
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_logistics"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_haul"
+           }
+          ]
+         ]
+        }
+       },
+       "product_qty": 1,
+       "price_unit": 850.0
+      }
+     ]
+    }
+   },
+   "save_as": "po",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "call",
+   "model": "purchase.order",
+   "target": {
+    "$var": "po"
+   },
+   "method": "button_confirm",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "auto_purchase_order_id",
+     "=",
+     {
+      "$var": "po"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "so"
+  },
+  {
+   "id": "s040",
+   "action": "assert",
+   "model": "sale.order",
+   "target": {
+    "$var": "so"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_logistics"
+      }
+     },
+     "partner_id": {
+      "eq": {
+       "$search": {
+        "model": "res.partner",
+        "domain": [
+         [
+          "ref_company_ids",
+          "in",
+          [
+           {
+            "$ref": "__ofa__.co_foods"
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     },
+     "state": {
+      "eq": "draft"
+     },
+     "auto_generated": {
+      "eq": true
+     },
+     "amount_untaxed": {
+      "eq": 850.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "call",
+   "model": "sale.order",
+   "target": {
+    "$var": "so"
+   },
+   "method": "action_confirm",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "create",
+   "model": "sale.advance.payment.inv",
+   "values": {
+    "sale_order_ids": {
+     "$set": [
+      {
+       "$search": {
+        "model": "sale.order",
+        "domain": [
+         [
+          "auto_purchase_order_id",
+          "=",
+          {
+           "$var": "po"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    "advance_payment_method": "delivered"
+   },
+   "save_as": "wiz",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s061",
+   "action": "call",
+   "model": "sale.advance.payment.inv",
+   "target": {
+    "$var": "wiz"
+   },
+   "method": "create_invoices",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s070",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "invoice_line_ids.sale_line_ids.order_id",
+     "in",
+     {
+      "$var": "so"
+     }
+    ],
+    [
+     "move_type",
+     "=",
+     "out_invoice"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "save_as": "inv"
+  },
+  {
+   "id": "s080",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s090",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "in",
+     {
+      "$var": "inv"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "bill"
+  },
+  {
+   "id": "s100",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "move_type": {
+      "eq": "in_invoice"
+     },
+     "state": {
+      "eq": "draft"
+     },
+     "amount_untaxed": {
+      "eq": 850.0
+     },
+     "partner_id": {
+      "eq": {
+       "$search": {
+        "model": "res.partner",
+        "domain": [
+         [
+          "ref_company_ids",
+          "in",
+          [
+           {
+            "$ref": "__ofa__.co_logistics"
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  }
+ ],
+ "requires": {
+  "modules": [
+   "sale_purchase_inter_company_rules",
+   "account_inter_company_rules"
+  ]
+ },
+ "evidence": [
+  {
+   "label": "haul_po",
+   "model": "purchase.order",
+   "target": {
+    "$var": "po"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "fields": [
+    "name",
+    "partner_id",
+    "partner_ref",
+    "state",
+    "amount_untaxed"
+   ]
+  },
+  {
+   "label": "haul_so",
+   "model": "sale.order",
+   "target": {
+    "$var": "so"
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "partner_id",
+    "client_order_ref",
+    "auto_generated",
+    "state"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "haul_bill",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "move_type",
+    "state",
+    "amount_untaxed",
+    "auto_invoice_id"
+   ],
+   "screenshot": true
+  }
+ ]
+}

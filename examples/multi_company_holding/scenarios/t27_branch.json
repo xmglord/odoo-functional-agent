@@ -1,0 +1,469 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_branch",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 1: the Riverside branch is a branch of Foods with Foods' tax ID and no bank journal of its own; a branch employee sells from the branch warehouse but cannot issue a taxed invoice (Odoo 20 finding); an accountant with Foods and Riverside issues the branch's invoice in the RVINV journal and numbering, while a Foods employee's invoice uses Foods' INV journal; each sees only its own warehouse.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "assert",
+   "model": "res.company",
+   "target": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "expect": {
+    "fields": {
+     "parent_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "root_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "vat": {
+      "eq": "00-0000102"
+     }
+    }
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_foods_branch"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": 0
+   }
+  },
+  {
+   "id": "s025",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_branch",
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s026",
+   "action": "assert",
+   "model": "sale.order",
+   "target": {
+    "$var": "so_branch"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods_branch"
+      }
+     },
+     "warehouse_id": {
+      "eq": {
+       "$ref": "__ofa__.wh_foods_branch"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 26.5
+      }
+     ]
+    },
+    "ref": "T27-BR-STAFF"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   },
+   "expect_error": {
+    "class": "AccessError",
+    "message_contains": "Access to unauthorized or invalid companies."
+   }
+  },
+  {
+   "id": "s031",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "ref",
+     "=",
+     "T27-BR-STAFF"
+    ]
+   ],
+   "expect": {
+    "count": 0
+   }
+  },
+  {
+   "id": "s040",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 2,
+       "price_unit": 26.5
+      }
+     ]
+    },
+    "ref": "T27-BR-ACCT"
+   },
+   "save_as": "inv_branch",
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s045",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_branch"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_branch"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods_branch"
+      }
+     },
+     "journal_id": {
+      "eq": {
+       "$ref": "__ofa__.journal_branch_sales"
+      }
+     },
+     "state": {
+      "eq": "posted"
+     },
+     "name": {
+      "contains": "RVINV"
+     },
+     "amount_tax": {
+      "gt": 0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 26.5
+      }
+     ]
+    }
+   },
+   "save_as": "inv_foods",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s070",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_foods"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "journal_id": {
+      "eq": {
+       "$search": {
+        "model": "account.journal",
+        "domain": [
+         [
+          "company_id",
+          "=",
+          {
+           "$ref": "__ofa__.co_foods"
+          }
+         ],
+         [
+          "code",
+          "=",
+          "INV"
+         ]
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s080",
+   "action": "search",
+   "model": "stock.warehouse",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.wh_foods_branch"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s081",
+   "action": "search",
+   "model": "stock.warehouse",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.wh_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s082",
+   "action": "search",
+   "model": "stock.warehouse",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.wh_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s083",
+   "action": "search",
+   "model": "stock.warehouse",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.wh_foods_branch"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "branch_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_branch"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "journal_id",
+    "state",
+    "amount_untaxed"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "foods_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_foods"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "journal_id",
+    "state"
+   ]
+  }
+ ]
+}

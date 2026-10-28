@@ -1,0 +1,555 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_shared_data",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 2: the customer, vendor and products are shared (no company) and visible from Foods, the branch and Logistics; the vendor's payment terms differ per company (30 vs 45 days); a Foods order gets Foods' pricelist (26.50) and only Foods taxes, a Logistics order the list price (30.00) and only Logistics taxes.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "search",
+   "model": "res.partner",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.cust_harborview"
+      },
+      {
+       "$ref": "__ofa__.vend_summit"
+      }
+     ]
+    ],
+    [
+     "company_id",
+     "=",
+     false
+    ]
+   ],
+   "expect": {
+    "count": 2
+   }
+  },
+  {
+   "id": "s011",
+   "action": "search",
+   "model": "product.template",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.prod_haul"
+      },
+      {
+       "$ref": "__ofa__.prod_mgmt_fee"
+      },
+      {
+       "$ref": "__ofa__.prod_frozen_case"
+      }
+     ]
+    ],
+    [
+     "company_id",
+     "=",
+     false
+    ]
+   ],
+   "expect": {
+    "count": 3
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "res.partner",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.cust_harborview"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s021",
+   "action": "search",
+   "model": "product.template",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.prod_haul"
+      },
+      {
+       "$ref": "__ofa__.prod_mgmt_fee"
+      },
+      {
+       "$ref": "__ofa__.prod_frozen_case"
+      }
+     ]
+    ]
+   ],
+   "expect": {
+    "count": 3
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s022",
+   "action": "search",
+   "model": "res.partner",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.cust_harborview"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s023",
+   "action": "search",
+   "model": "product.template",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.prod_haul"
+      },
+      {
+       "$ref": "__ofa__.prod_mgmt_fee"
+      },
+      {
+       "$ref": "__ofa__.prod_frozen_case"
+      }
+     ]
+    ]
+   ],
+   "expect": {
+    "count": 3
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s024",
+   "action": "search",
+   "model": "res.partner",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.cust_harborview"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s025",
+   "action": "search",
+   "model": "product.template",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.prod_haul"
+      },
+      {
+       "$ref": "__ofa__.prod_mgmt_fee"
+      },
+      {
+       "$ref": "__ofa__.prod_frozen_case"
+      }
+     ]
+    ]
+   ],
+   "expect": {
+    "count": 3
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "assert",
+   "model": "res.partner",
+   "target": {
+    "$ref": "__ofa__.vend_summit"
+   },
+   "expect": {
+    "fields": {
+     "property_supplier_payment_term_id": {
+      "eq": {
+       "$ref": "account.account_payment_term_30days"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s031",
+   "action": "assert",
+   "model": "res.partner",
+   "target": {
+    "$ref": "__ofa__.vend_summit"
+   },
+   "expect": {
+    "fields": {
+     "property_supplier_payment_term_id": {
+      "eq": {
+       "$ref": "account.account_payment_term_45days"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_foods",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s041",
+   "action": "assert",
+   "model": "sale.order",
+   "target": {
+    "$var": "so_foods"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "pricelist_id": {
+      "eq": {
+       "$ref": "__ofa__.pricelist_foods"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s042",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_foods"
+     }
+    ],
+    [
+     "price_unit",
+     "=",
+     26.5
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s043",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_foods"
+     }
+    ],
+    [
+     "tax_ids.company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s044",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_foods"
+     }
+    ],
+    [
+     "tax_ids.company_id",
+     "!=",
+     {
+      "$ref": "__ofa__.co_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_log",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s051",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_log"
+     }
+    ],
+    [
+     "price_unit",
+     "=",
+     30.0
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s052",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_log"
+     }
+    ],
+    [
+     "tax_ids.company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_logistics"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s053",
+   "action": "search",
+   "model": "sale.order.line",
+   "domain": [
+    [
+     "order_id",
+     "=",
+     {
+      "$var": "so_log"
+     }
+    ],
+    [
+     "tax_ids.company_id",
+     "!=",
+     {
+      "$ref": "__ofa__.co_logistics"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "foods_order",
+   "model": "sale.order",
+   "target": {
+    "$var": "so_foods"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "pricelist_id",
+    "amount_untaxed",
+    "amount_tax"
+   ]
+  },
+  {
+   "label": "logistics_order",
+   "model": "sale.order",
+   "target": {
+    "$var": "so_log"
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "pricelist_id",
+    "amount_untaxed",
+    "amount_tax"
+   ]
+  }
+ ]
+}

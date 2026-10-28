@@ -1,0 +1,381 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_isolation",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 3: a Foods employee sees Foods' own order but none of Logistics' or the branch's orders, Logistics' invoice, bank journal or warehouse, and cannot change Logistics' invoice; a branch employee sees the branch's order but not Foods'.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_log",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s011",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 30.0
+      }
+     ]
+    },
+    "ref": "T27-ISO-LOG"
+   },
+   "save_as": "inv_log",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s012",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_branch",
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   }
+  },
+  {
+   "id": "s013",
+   "action": "create",
+   "model": "sale.order",
+   "values": {
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "order_line": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "product_uom_qty": 1
+      }
+     ]
+    }
+   },
+   "save_as": "so_foods",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "so_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s021",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "so_log"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s022",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "inv_log"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s023",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_logistics"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s024",
+   "action": "search",
+   "model": "stock.warehouse",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$ref": "__ofa__.wh_logistics"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s025",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "so_branch"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "write",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_log"
+   },
+   "values": {
+    "ref": "T27-ISO-CHANGED"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "expect_error": {
+    "class": "AccessError",
+    "message_contains": "doesn't have 'read' access to"
+   },
+   "as": {
+    "$ref": "__ofa__.role_foods_staff"
+   }
+  },
+  {
+   "id": "s031",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_log"
+   },
+   "expect": {
+    "fields": {
+     "ref": {
+      "eq": "T27-ISO-LOG"
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "so_branch"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  },
+  {
+   "id": "s041",
+   "action": "search",
+   "model": "sale.order",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "so_foods"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 0
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods_branch"
+   },
+   "as": {
+    "$ref": "__ofa__.role_branch_staff"
+   }
+  }
+ ]
+}

@@ -1,0 +1,664 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_controller",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 3: the group controller reads invoices of every company at once and per company, creates and posts journal entries in Eliminations and Foods, but is refused creating an entry in Logistics or posting a Logistics invoice; a user without the marker group (the bot) can still create a Logistics entry.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 30.0
+      }
+     ]
+    },
+    "ref": "T27-CTRL-LOG"
+   },
+   "save_as": "inv_log",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s011",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$ref": "__ofa__.cust_harborview"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_frozen_case"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 26.5
+      }
+     ]
+    },
+    "ref": "T27-CTRL-FOODS"
+   },
+   "save_as": "inv_foods",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$var": "inv_log"
+      },
+      {
+       "$var": "inv_foods"
+      }
+     ]
+    ]
+   ],
+   "expect": {
+    "count": 2
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s021",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "id",
+     "=",
+     {
+      "$var": "inv_log"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "entry",
+    "ref": "T27-CTRL-ELIM",
+    "journal_id": {
+     "$search": {
+      "model": "account.journal",
+      "domain": [
+       [
+        "company_id",
+        "=",
+        {
+         "$ref": "__ofa__.co_eliminations"
+        }
+       ],
+       [
+        "code",
+        "=",
+        "MISC"
+       ]
+      ]
+     }
+    },
+    "line_ids": {
+     "$create": [
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_eliminations"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Product Sales"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-ELIM",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_eliminations"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Cost of Goods Sold"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-ELIM",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "save_as": "je_elim",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s031",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "je_elim"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s032",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "je_elim"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_eliminations"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "entry",
+    "ref": "T27-CTRL-FOODS-JE",
+    "journal_id": {
+     "$search": {
+      "model": "account.journal",
+      "domain": [
+       [
+        "company_id",
+        "=",
+        {
+         "$ref": "__ofa__.co_foods"
+        }
+       ],
+       [
+        "code",
+        "=",
+        "MISC"
+       ]
+      ]
+     }
+    },
+    "line_ids": {
+     "$create": [
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_foods"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Product Sales"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-FOODS-JE",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_foods"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Cost of Goods Sold"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-FOODS-JE",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "save_as": "je_foods",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s041",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "je_foods"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s042",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "je_foods"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "entry",
+    "ref": "T27-CTRL-LOG-JE",
+    "journal_id": {
+     "$search": {
+      "model": "account.journal",
+      "domain": [
+       [
+        "company_id",
+        "=",
+        {
+         "$ref": "__ofa__.co_logistics"
+        }
+       ],
+       [
+        "code",
+        "=",
+        "MISC"
+       ]
+      ]
+     }
+    },
+    "line_ids": {
+     "$create": [
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_logistics"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Product Sales"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-LOG-JE",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_logistics"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Cost of Goods Sold"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-LOG-JE",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   },
+   "expect_error": {
+    "class": "AccessError",
+    "message_contains": "doesn't have 'create' access to"
+   }
+  },
+  {
+   "id": "s051",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "ref",
+     "=",
+     "T27-CTRL-LOG-JE"
+    ]
+   ],
+   "expect": {
+    "count": 0
+   }
+  },
+  {
+   "id": "s060",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_log"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   },
+   "expect_error": {
+    "class": "AccessError",
+    "message_contains": "doesn't have 'write' access to"
+   }
+  },
+  {
+   "id": "s061",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_log"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "draft"
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s070",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "entry",
+    "ref": "T27-CTRL-BOT-JE",
+    "journal_id": {
+     "$search": {
+      "model": "account.journal",
+      "domain": [
+       [
+        "company_id",
+        "=",
+        {
+         "$ref": "__ofa__.co_logistics"
+        }
+       ],
+       [
+        "code",
+        "=",
+        "MISC"
+       ]
+      ]
+     }
+    },
+    "line_ids": {
+     "$create": [
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_logistics"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Product Sales"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-BOT-JE",
+       "debit": 100.0,
+       "credit": 0
+      },
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_logistics"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Cost of Goods Sold"
+          ]
+         ]
+        }
+       },
+       "name": "T27-CTRL-BOT-JE",
+       "debit": 0,
+       "credit": 100.0
+      }
+     ]
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "save_as": "je_bot"
+  },
+  {
+   "id": "s071",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "je_bot"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_logistics"
+      }
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "controller_elimination_entry",
+   "model": "account.move",
+   "target": {
+    "$var": "je_elim"
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "state",
+    "amount_total"
+   ]
+  }
+ ]
+}

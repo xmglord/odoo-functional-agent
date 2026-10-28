@@ -1,0 +1,939 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_group_reporting",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Needs 3 and 6: as the group controller, the US P&L for September 2026 shows Holdings' 21000 fee revenue alone; over the four group companies it counts the 21850 of inter-company hauls and fees as both revenue and cost of sales; after the controller posts the elimination entry in Ridgeline Eliminations, the five-company P&L shows 0 revenue and 0 cost for them. The balance sheet also runs over the group.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_foods"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_haul"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 850.0
+      }
+     ]
+    },
+    "invoice_date": "2026-09-15"
+   },
+   "save_as": "h_inv",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s011",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "h_inv"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s012",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_foods"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_mgmt_fee"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 12000.0
+      }
+     ]
+    },
+    "invoice_date": "2026-09-15"
+   },
+   "save_as": "f_inv",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s013",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "f_inv"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s014",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_logistics"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_mgmt_fee"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 9000.0
+      }
+     ]
+    },
+    "invoice_date": "2026-09-15"
+   },
+   "save_as": "l_inv",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s015",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "l_inv"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "=",
+     {
+      "$var": "h_inv"
+     }
+    ],
+    [
+     "invoice_date",
+     "=",
+     "2026-09-15"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "h_bill"
+  },
+  {
+   "id": "s021",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "h_bill"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s022",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "=",
+     {
+      "$var": "f_inv"
+     }
+    ],
+    [
+     "invoice_date",
+     "=",
+     "2026-09-15"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "f_bill"
+  },
+  {
+   "id": "s023",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "f_bill"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s024",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "=",
+     {
+      "$var": "l_inv"
+     }
+    ],
+    [
+     "invoice_date",
+     "=",
+     "2026-09-15"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "l_bill"
+  },
+  {
+   "id": "s025",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "l_bill"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "hide_0_lines": false
+    }
+   },
+   "save_as": "opts_all",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s031",
+   "action": "check",
+   "value": {
+    "$var": "opts_all"
+   },
+   "path": "companies",
+   "expect": {
+    "count": 5
+   }
+  },
+  {
+   "id": "s032",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_report_information",
+   "params": {
+    "options": {
+     "$var": "opts_all"
+    }
+   },
+   "save_as": "info_all",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s033",
+   "action": "check",
+   "value": {
+    "$var": "info_all"
+   },
+   "path": "lines",
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s040",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "hide_0_lines": false,
+     "date": {
+      "date_from": "2026-09-01",
+      "date_to": "2026-09-30",
+      "mode": "range",
+      "filter": "custom"
+     },
+     "forced_companies": [
+      {
+       "$ref": "__ofa__.co_holdings"
+      }
+     ]
+    }
+   },
+   "save_as": "opts_h",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s041",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_report_information",
+   "params": {
+    "options": {
+     "$var": "opts_h"
+    }
+   },
+   "save_as": "info_h",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s042",
+   "action": "check",
+   "value": {
+    "$var": "info_h"
+   },
+   "path": "lines.0.name",
+   "expect": {
+    "value": {
+     "eq": "Revenue"
+    }
+   }
+  },
+  {
+   "id": "s043",
+   "action": "check",
+   "value": {
+    "$var": "info_h"
+   },
+   "path": "lines.0.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 21000.0
+    }
+   }
+  },
+  {
+   "id": "s050",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "hide_0_lines": false,
+     "date": {
+      "date_from": "2026-09-01",
+      "date_to": "2026-09-30",
+      "mode": "range",
+      "filter": "custom"
+     },
+     "forced_companies": [
+      {
+       "$ref": "__ofa__.co_holdings"
+      },
+      {
+       "$ref": "__ofa__.co_foods"
+      },
+      {
+       "$ref": "__ofa__.co_foods_branch"
+      },
+      {
+       "$ref": "__ofa__.co_logistics"
+      }
+     ]
+    }
+   },
+   "save_as": "opts_g",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s051",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_report_information",
+   "params": {
+    "options": {
+     "$var": "opts_g"
+    }
+   },
+   "save_as": "info_g",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.0.name",
+   "expect": {
+    "value": {
+     "eq": "Revenue"
+    }
+   }
+  },
+  {
+   "id": "s061",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.0.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 21850.0
+    }
+   }
+  },
+  {
+   "id": "s062",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.2.name",
+   "expect": {
+    "value": {
+     "eq": "Cost of Sales"
+    }
+   }
+  },
+  {
+   "id": "s063",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.2.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 21850.0
+    }
+   }
+  },
+  {
+   "id": "s064",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.10.name",
+   "expect": {
+    "value": {
+     "eq": "Net Income"
+    }
+   }
+  },
+  {
+   "id": "s065",
+   "action": "check",
+   "value": {
+    "$var": "info_g"
+   },
+   "path": "lines.10.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 0.0
+    }
+   }
+  },
+  {
+   "id": "s070",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "entry",
+    "ref": "T27-ELIM-2026-09",
+    "journal_id": {
+     "$search": {
+      "model": "account.journal",
+      "domain": [
+       [
+        "company_id",
+        "=",
+        {
+         "$ref": "__ofa__.co_eliminations"
+        }
+       ],
+       [
+        "code",
+        "=",
+        "MISC"
+       ]
+      ]
+     }
+    },
+    "line_ids": {
+     "$create": [
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_eliminations"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Product Sales"
+          ]
+         ]
+        }
+       },
+       "name": "T27-ELIM-2026-09",
+       "debit": 21850.0,
+       "credit": 0
+      },
+      {
+       "account_id": {
+        "$search": {
+         "model": "account.account",
+         "domain": [
+          [
+           "company_ids",
+           "in",
+           [
+            {
+             "$ref": "__ofa__.co_eliminations"
+            }
+           ]
+          ],
+          [
+           "name",
+           "=",
+           "Cost of Goods Sold"
+          ]
+         ]
+        }
+       },
+       "name": "T27-ELIM-2026-09",
+       "debit": 0,
+       "credit": 21850.0
+      }
+     ]
+    },
+    "date": "2026-09-30"
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "save_as": "elim",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s071",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "elim"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s072",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "elim"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_eliminations"
+      }
+     },
+     "date": {
+      "eq": "2026-09-30"
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   }
+  },
+  {
+   "id": "s080",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "hide_0_lines": false,
+     "date": {
+      "date_from": "2026-09-01",
+      "date_to": "2026-09-30",
+      "mode": "range",
+      "filter": "custom"
+     },
+     "forced_companies": [
+      {
+       "$ref": "__ofa__.co_holdings"
+      },
+      {
+       "$ref": "__ofa__.co_foods"
+      },
+      {
+       "$ref": "__ofa__.co_foods_branch"
+      },
+      {
+       "$ref": "__ofa__.co_logistics"
+      },
+      {
+       "$ref": "__ofa__.co_eliminations"
+      }
+     ]
+    }
+   },
+   "save_as": "opts_e",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s081",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.profit_and_loss"
+   },
+   "method": "get_report_information",
+   "params": {
+    "options": {
+     "$var": "opts_e"
+    }
+   },
+   "save_as": "info_e",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s090",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.0.name",
+   "expect": {
+    "value": {
+     "eq": "Revenue"
+    }
+   }
+  },
+  {
+   "id": "s091",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.0.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 0.0
+    }
+   }
+  },
+  {
+   "id": "s092",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.2.name",
+   "expect": {
+    "value": {
+     "eq": "Cost of Sales"
+    }
+   }
+  },
+  {
+   "id": "s093",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.2.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 0.0
+    }
+   }
+  },
+  {
+   "id": "s094",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.10.name",
+   "expect": {
+    "value": {
+     "eq": "Net Income"
+    }
+   }
+  },
+  {
+   "id": "s095",
+   "action": "check",
+   "value": {
+    "$var": "info_e"
+   },
+   "path": "lines.10.columns.0.no_format",
+   "expect": {
+    "value": {
+     "eq": 0.0
+    }
+   }
+  },
+  {
+   "id": "s100",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.balance_sheet"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "hide_0_lines": false,
+     "date": {
+      "date_to": "2026-09-30",
+      "mode": "single",
+      "filter": "custom"
+     },
+     "forced_companies": [
+      {
+       "$ref": "__ofa__.co_holdings"
+      },
+      {
+       "$ref": "__ofa__.co_foods"
+      },
+      {
+       "$ref": "__ofa__.co_foods_branch"
+      },
+      {
+       "$ref": "__ofa__.co_logistics"
+      },
+      {
+       "$ref": "__ofa__.co_eliminations"
+      }
+     ]
+    }
+   },
+   "save_as": "opts_bs",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s101",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "l10n_us_reports.balance_sheet"
+   },
+   "method": "get_report_information",
+   "params": {
+    "options": {
+     "$var": "opts_bs"
+    }
+   },
+   "save_as": "info_bs",
+   "as": {
+    "$ref": "__ofa__.role_group_controller"
+   }
+  },
+  {
+   "id": "s102",
+   "action": "check",
+   "value": {
+    "$var": "info_bs"
+   },
+   "path": "lines",
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  }
+ ],
+ "requires": {
+  "modules": [
+   "account_reports",
+   "l10n_us_reports",
+   "account_inter_company_rules"
+  ]
+ },
+ "evidence": [
+  {
+   "label": "elimination_entry",
+   "model": "account.move",
+   "target": {
+    "$var": "elim"
+   },
+   "company": {
+    "$ref": "__ofa__.co_eliminations"
+   },
+   "fields": [
+    "name",
+    "ref",
+    "date",
+    "state",
+    "amount_total"
+   ],
+   "screenshot": true
+  }
+ ]
+}

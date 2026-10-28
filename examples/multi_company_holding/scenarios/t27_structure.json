@@ -1,0 +1,311 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_structure",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 1: Holdings, Foods, Logistics and Eliminations are root companies with the US chart, each with its own sales and bank journals; the three legal entities carry their own tax IDs.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "search",
+   "model": "res.company",
+   "domain": [
+    [
+     "id",
+     "in",
+     [
+      {
+       "$ref": "__ofa__.co_holdings"
+      },
+      {
+       "$ref": "__ofa__.co_foods"
+      },
+      {
+       "$ref": "__ofa__.co_logistics"
+      },
+      {
+       "$ref": "__ofa__.co_eliminations"
+      }
+     ]
+    ],
+    [
+     "parent_id",
+     "=",
+     false
+    ],
+    [
+     "chart_template",
+     "=",
+     "us"
+    ]
+   ],
+   "expect": {
+    "count": 4
+   }
+  },
+  {
+   "id": "s020",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_holdings"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "sale"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s021",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_holdings"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s022",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_foods"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "sale"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s023",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_foods"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s024",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_logistics"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "sale"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s025",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_logistics"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s026",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_eliminations"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "sale"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s027",
+   "action": "search",
+   "model": "account.journal",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "__ofa__.co_eliminations"
+     }
+    ],
+    [
+     "type",
+     "=",
+     "bank"
+    ]
+   ],
+   "expect": {
+    "count": {
+     "gte": 1
+    }
+   }
+  },
+  {
+   "id": "s040",
+   "action": "assert",
+   "model": "res.company",
+   "target": {
+    "$ref": "__ofa__.co_holdings"
+   },
+   "expect": {
+    "fields": {
+     "vat": {
+      "eq": "00-0000101"
+     }
+    }
+   }
+  },
+  {
+   "id": "s041",
+   "action": "assert",
+   "model": "res.company",
+   "target": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "expect": {
+    "fields": {
+     "vat": {
+      "eq": "00-0000102"
+     }
+    }
+   }
+  },
+  {
+   "id": "s042",
+   "action": "assert",
+   "model": "res.company",
+   "target": {
+    "$ref": "__ofa__.co_logistics"
+   },
+   "expect": {
+    "fields": {
+     "vat": {
+      "eq": "00-0000103"
+     }
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "companies",
+   "model": "res.company",
+   "target": [
+    {
+     "$ref": "__ofa__.co_holdings"
+    },
+    {
+     "$ref": "__ofa__.co_foods"
+    },
+    {
+     "$ref": "__ofa__.co_logistics"
+    },
+    {
+     "$ref": "__ofa__.co_eliminations"
+    }
+   ],
+   "fields": [
+    "name",
+    "parent_id",
+    "chart_template",
+    "vat"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,518 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t27_management_fee",
+ "area": "multi_company",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 5: Holdings' fee invoices to Foods (12000) and Logistics (9000), saved with Auto-post Monthly, generate each receiver's draft bill when posted and next month's draft invoice; posting July's copy (stand-in for the daily cron) generates July's draft bill in Foods and the August copy.",
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_foods"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_mgmt_fee"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 12000.0
+      }
+     ]
+    },
+    "auto_post": "monthly",
+    "invoice_date": "2026-06-01"
+   },
+   "save_as": "inv_f",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s011",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "partner_id": {
+     "$search": {
+      "model": "res.partner",
+      "domain": [
+       [
+        "ref_company_ids",
+        "in",
+        [
+         {
+          "$ref": "__ofa__.co_logistics"
+         }
+        ]
+       ]
+      ]
+     }
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.prod_mgmt_fee"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 9000.0
+      }
+     ]
+    },
+    "auto_post": "monthly",
+    "invoice_date": "2026-06-01"
+   },
+   "save_as": "inv_l",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_f"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s021",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_l"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s030",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "=",
+     {
+      "$var": "inv_f"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "bill_f"
+  },
+  {
+   "id": "s031",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill_f"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "move_type": {
+      "eq": "in_invoice"
+     },
+     "state": {
+      "eq": "draft"
+     },
+     "amount_untaxed": {
+      "eq": 12000.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s032",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "=",
+     {
+      "$var": "inv_l"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "bill_l"
+  },
+  {
+   "id": "s033",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill_l"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_logistics"
+      }
+     },
+     "move_type": {
+      "eq": "in_invoice"
+     },
+     "state": {
+      "eq": "draft"
+     },
+     "amount_untaxed": {
+      "eq": 9000.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_logistics"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_post_origin_id",
+     "=",
+     {
+      "$var": "inv_f"
+     }
+    ],
+    [
+     "state",
+     "=",
+     "draft"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "copy_f"
+  },
+  {
+   "id": "s041",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "copy_f"
+   },
+   "expect": {
+    "fields": {
+     "auto_post": {
+      "eq": "monthly"
+     },
+     "invoice_date": {
+      "eq": "2026-07-01"
+     },
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_holdings"
+      }
+     },
+     "partner_id": {
+      "eq": {
+       "$search": {
+        "model": "res.partner",
+        "domain": [
+         [
+          "ref_company_ids",
+          "in",
+          [
+           {
+            "$ref": "__ofa__.co_foods"
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     },
+     "amount_untaxed": {
+      "eq": 12000.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s042",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_post_origin_id",
+     "=",
+     {
+      "$var": "inv_l"
+     }
+    ],
+    [
+     "state",
+     "=",
+     "draft"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "copy_l"
+  },
+  {
+   "id": "s043",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "copy_l"
+   },
+   "expect": {
+    "fields": {
+     "auto_post": {
+      "eq": "monthly"
+     },
+     "invoice_date": {
+      "eq": "2026-07-01"
+     },
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_holdings"
+      }
+     },
+     "partner_id": {
+      "eq": {
+       "$search": {
+        "model": "res.partner",
+        "domain": [
+         [
+          "ref_company_ids",
+          "in",
+          [
+           {
+            "$ref": "__ofa__.co_logistics"
+           }
+          ]
+         ]
+        ]
+       }
+      }
+     },
+     "amount_untaxed": {
+      "eq": 9000.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "copy_f"
+   },
+   "method": "action_post",
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_invoice_id",
+     "in",
+     {
+      "$var": "copy_f"
+     }
+    ]
+   ],
+   "expect": {
+    "count": 1
+   },
+   "save_as": "bill_f_jul"
+  },
+  {
+   "id": "s061",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill_f_jul"
+   },
+   "expect": {
+    "fields": {
+     "company_id": {
+      "eq": {
+       "$ref": "__ofa__.co_foods"
+      }
+     },
+     "move_type": {
+      "eq": "in_invoice"
+     },
+     "state": {
+      "eq": "draft"
+     },
+     "amount_untaxed": {
+      "eq": 12000.0
+     }
+    }
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   }
+  },
+  {
+   "id": "s070",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "auto_post_origin_id",
+     "=",
+     {
+      "$var": "inv_f"
+     }
+    ],
+    [
+     "state",
+     "=",
+     "draft"
+    ],
+    [
+     "invoice_date",
+     "=",
+     "2026-08-01"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "requires": {
+  "modules": [
+   "account_inter_company_rules"
+  ]
+ },
+ "evidence": [
+  {
+   "label": "fee_invoice_foods",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_f"
+   },
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   },
+   "fields": [
+    "name",
+    "partner_id",
+    "auto_post",
+    "invoice_date",
+    "state",
+    "amount_untaxed"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "fee_july_copy_foods",
+   "model": "account.move",
+   "target": {
+    "$var": "copy_f"
+   },
+   "company": {
+    "$ref": "__ofa__.co_holdings"
+   },
+   "fields": [
+    "name",
+    "auto_post",
+    "auto_post_origin_id",
+    "invoice_date",
+    "state"
+   ]
+  },
+  {
+   "label": "fee_bill_foods",
+   "model": "account.move",
+   "target": {
+    "$var": "bill_f"
+   },
+   "company": {
+    "$ref": "__ofa__.co_foods"
+   },
+   "fields": [
+    "name",
+    "company_id",
+    "state",
+    "amount_untaxed",
+    "auto_invoice_id"
+   ]
+  }
+ ]
+}
