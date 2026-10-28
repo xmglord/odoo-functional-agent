@@ -98,12 +98,12 @@ These hold in every phase.
      runs as `ofa_bot`, an administrator that skips approvals. Give the role to a test user with its own op: an
      `upsert_record` of `res.users` with `match` on `login` = `ofa_user_1` (to `ofa_user_3`) and `group_ids` /
      `company_ids` as `$set` (see "Test identities" in `docs/plan_format.md`). Never an administrator group.
-4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
-   the literal `[op_id]`, each in its own brackets. Its "Test plan" lists every need of the requirement with the
-   scenario you will write for it and what that scenario checks (fields read back, expected values; for a negative
-   test, the refusal's exception class and text). Mark a need
-   no scenario will prove as **Not tested**, with the reason; do not leave a need out. List the role ops in its
-   "Test identities" section.
+4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as the
+   literal `[op_id]`, each in its own brackets. Its "Test plan" lists every need of the requirement with the scenario
+   you will write for it and what that scenario checks (fields read back, expected values; for a negative test, the
+   refusal's exception class and text). Mark a need no scenario will prove as **Not tested**, with the reason; do not
+   leave a need out. A report or an exported file is testable with `check` steps (Phase 6), not "read in the UI". List
+   the role ops in its "Test identities" section.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
 6. Plan lint: run `ofa lint-plan plans/<slug> --target <slug>`. It checks every module, model, field, settings
    key, method, xmlid and selection value in plan.json, and every technical name in backticks in plan.md, against
@@ -171,6 +171,12 @@ When apply does not exit 0:
    a company other than the main one, set the scenario's top-level `company` to it: without it, reads and
    company-dependent values (a customer's `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s
    companies in a scenario.
+   A report's figures or an exported file (a P&L across companies, the SAT XML) are not records: get the report's
+   options with a `call` to `account.report` `get_options` and `save_as`, pass them on (`{"$var": "opts"}`) to the
+   call that produces the lines or the file, `save_as` that too, and assert on it with `check` steps (`path`,
+   `xml`, `expect`; see "Checking a saved result" in `docs/scenario_format.md`). Never mark such a need "read in
+   the UI" or Not tested before trying this. Use `check` only for report options, report lines and exported files;
+   anything a user sees on a record is a field, checked with `assert`.
 3. Run them into the same run:
    `ofa test --plan-dir plans/<slug> --run <run_id> --target <slug> <scenario.json> ...`
    Exit 0 means all pass, 1 means an assertion failed, 4 means a scenario errored (its preconditions failed or the
