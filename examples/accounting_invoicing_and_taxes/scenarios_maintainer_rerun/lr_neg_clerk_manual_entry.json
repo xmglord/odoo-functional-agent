@@ -1,0 +1,51 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_neg_clerk_manual_entry",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Negative: the clerk cannot create a manual journal entry.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "entry",
+        "journal_id": 3,
+        "date": "2026-10-25",
+        "ref": "Clerk manual entry",
+        "line_ids": {
+          "$create": [
+            {
+              "account_id": 31,
+              "name": "Adjustment",
+              "debit": 100
+            },
+            {
+              "account_id": 25,
+              "name": "Adjustment",
+              "credit": 100
+            }
+          ]
+        }
+      },
+      "expect_error": {
+        "class": "AccessError",
+        "message_contains": "doesn't have 'create' access to:"
+      }
+    }
+  ]
+}

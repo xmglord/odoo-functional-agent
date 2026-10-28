@@ -1,0 +1,315 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_tax_domestic_vs_export",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Clerk invoices a US and a German customer; the fiscal position picks 15% or 0% export with its legal mention.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-05",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 1000,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "dom"
+    },
+    {
+      "id": "s010_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "dom"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s020",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "dom"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "fiscal_position_id": {
+            "eq": {
+              "$ref": "account.1_template_generic_domestic_fiscal_position"
+            }
+          },
+          "amount_untaxed": {
+            "eq": 1000
+          },
+          "amount_tax": {
+            "eq": 150
+          }
+        }
+      }
+    },
+    {
+      "id": "s030",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "=",
+          {
+            "$var": "dom"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "product"
+        ],
+        [
+          "tax_ids",
+          "in",
+          [
+            {
+              "$ref": "account.1_sale_tax_template"
+            }
+          ]
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s040_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 59,
+        "invoice_date": "2026-10-05",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 1000,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "exp"
+    },
+    {
+      "id": "s040_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "exp"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s050",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "exp"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "fiscal_position_id": {
+            "eq": {
+              "$ref": "__ofa__.export_fpos"
+            }
+          },
+          "amount_untaxed": {
+            "eq": 1000
+          },
+          "amount_tax": {
+            "eq": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "s060",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "=",
+          {
+            "$var": "exp"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "product"
+        ],
+        [
+          "tax_ids",
+          "in",
+          [
+            {
+              "$ref": "__ofa__.export_tax"
+            }
+          ]
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s070",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "=",
+          {
+            "$var": "exp"
+          }
+        ],
+        [
+          "tax_ids",
+          "in",
+          [
+            {
+              "$ref": "account.1_sale_tax_template"
+            }
+          ]
+        ]
+      ],
+      "expect": {
+        "count": 0
+      }
+    },
+    {
+      "id": "s080",
+      "action": "assert",
+      "model": "account.fiscal.position",
+      "target": {
+        "$ref": "__ofa__.export_fpos"
+      },
+      "expect": {
+        "fields": {
+          "note": {
+            "contains": "Export of services"
+          }
+        }
+      }
+    },
+    {
+      "id": "s090",
+      "action": "assert",
+      "model": "account.tax",
+      "target": {
+        "$ref": "__ofa__.export_tax"
+      },
+      "expect": {
+        "fields": {
+          "invoice_label": {
+            "eq": "0% (export of services)"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "domestic_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "dom"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "export_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "exp"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    }
+  ]
+}

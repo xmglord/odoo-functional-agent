@@ -1,0 +1,427 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_profitability",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Clerk invoice and two bills on project Client Portal split by department: project margin and department amounts from analytic lines.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-18",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 3000,
+              "analytic_distribution": {
+                "27,24": 100
+              }
+            },
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 2000,
+              "analytic_distribution": {
+                "27,25": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "inv"
+    },
+    {
+      "id": "s010_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "inv"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s020_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "in_invoice",
+        "partner_id": 60,
+        "invoice_date": "2026-10-18",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 61,
+              "quantity": 1,
+              "price_unit": 1200,
+              "analytic_distribution": {
+                "27,25": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "bill1"
+    },
+    {
+      "id": "s020_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "bill1"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s030_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "in_invoice",
+        "partner_id": 61,
+        "invoice_date": "2026-10-18",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 62,
+              "quantity": 1,
+              "price_unit": 300,
+              "analytic_distribution": {
+                "27,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "bill2"
+    },
+    {
+      "id": "s030_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "bill2"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "account.move",
+      "target": [
+        {
+          "$var": "inv"
+        },
+        {
+          "$var": "bill1"
+        },
+        {
+          "$var": "bill2"
+        }
+      ],
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050",
+      "action": "assert",
+      "model": "account.analytic.account",
+      "target": {
+        "$ref": "__ofa__.proj_portal"
+      },
+      "expect": {
+        "fields": {
+          "balance": {
+            "eq": 3500
+          },
+          "credit": {
+            "eq": 5000
+          },
+          "debit": {
+            "eq": 1500
+          }
+        }
+      }
+    },
+    {
+      "id": "s060",
+      "action": "search",
+      "model": "account.analytic.line",
+      "domain": [
+        [
+          "move_line_id.move_id",
+          "in",
+          [
+            {
+              "$var": "inv"
+            },
+            {
+              "$var": "bill1"
+            },
+            {
+              "$var": "bill2"
+            }
+          ]
+        ],
+        [
+          "account_id",
+          "=",
+          27
+        ],
+        [
+          "x_plan2_id",
+          "=",
+          24
+        ],
+        [
+          "amount",
+          "=",
+          3000
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s070",
+      "action": "search",
+      "model": "account.analytic.line",
+      "domain": [
+        [
+          "move_line_id.move_id",
+          "in",
+          [
+            {
+              "$var": "inv"
+            },
+            {
+              "$var": "bill1"
+            },
+            {
+              "$var": "bill2"
+            }
+          ]
+        ],
+        [
+          "account_id",
+          "=",
+          27
+        ],
+        [
+          "x_plan2_id",
+          "=",
+          24
+        ],
+        [
+          "amount",
+          "=",
+          -300
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s080",
+      "action": "search",
+      "model": "account.analytic.line",
+      "domain": [
+        [
+          "move_line_id.move_id",
+          "in",
+          [
+            {
+              "$var": "inv"
+            },
+            {
+              "$var": "bill1"
+            },
+            {
+              "$var": "bill2"
+            }
+          ]
+        ],
+        [
+          "account_id",
+          "=",
+          27
+        ],
+        [
+          "x_plan2_id",
+          "=",
+          25
+        ],
+        [
+          "amount",
+          "=",
+          2000
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s090",
+      "action": "search",
+      "model": "account.analytic.line",
+      "domain": [
+        [
+          "move_line_id.move_id",
+          "in",
+          [
+            {
+              "$var": "inv"
+            },
+            {
+              "$var": "bill1"
+            },
+            {
+              "$var": "bill2"
+            }
+          ]
+        ],
+        [
+          "account_id",
+          "=",
+          27
+        ],
+        [
+          "x_plan2_id",
+          "=",
+          25
+        ],
+        [
+          "amount",
+          "=",
+          -1200
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s100",
+      "action": "search",
+      "model": "account.analytic.line",
+      "domain": [
+        [
+          "move_line_id.move_id",
+          "in",
+          [
+            {
+              "$var": "inv"
+            },
+            {
+              "$var": "bill1"
+            },
+            {
+              "$var": "bill2"
+            }
+          ]
+        ]
+      ],
+      "save_as": "alines",
+      "expect": {
+        "count": 4
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "project_portal",
+      "model": "account.analytic.account",
+      "target": {
+        "$ref": "__ofa__.proj_portal"
+      },
+      "fields": [
+        "name",
+        "code",
+        "debit",
+        "credit",
+        "balance"
+      ],
+      "screenshot": false
+    },
+    {
+      "label": "analytic_lines",
+      "model": "account.analytic.line",
+      "target": {
+        "$var": "alines"
+      },
+      "fields": [
+        "name",
+        "account_id",
+        "x_plan2_id",
+        "amount",
+        "date"
+      ],
+      "screenshot": false
+    },
+    {
+      "label": "subcontractor_bill",
+      "model": "account.move",
+      "target": {
+        "$var": "bill1"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_accountant_adjustment",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "The accountant creates and posts a manual adjustment entry.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "move_type": "entry",
+        "journal_id": 3,
+        "date": "2026-10-25",
+        "ref": "Accountant adjustment",
+        "line_ids": {
+          "$create": [
+            {
+              "account_id": 31,
+              "name": "Adjustment",
+              "debit": 100
+            },
+            {
+              "account_id": 25,
+              "name": "Adjustment",
+              "credit": 100
+            }
+          ]
+        }
+      },
+      "save_as": "je"
+    },
+    {
+      "id": "s020",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "je"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s030",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "je"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "move_type": {
+            "eq": "entry"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "adjustment",
+      "model": "account.move",
+      "target": {
+        "$var": "je"
+      },
+      "fields": [
+        "name",
+        "state",
+        "date",
+        "journal_id",
+        "amount_total"
+      ],
+      "screenshot": false
+    }
+  ]
+}

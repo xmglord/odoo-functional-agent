@@ -1,0 +1,217 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_close_month",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "The accountant closes August; an invoice dated in August posted afterwards lands after the lock.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-08-10",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 800,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        },
+        "ref": "LR-AUG-CLOSE"
+      },
+      "save_as": "aug"
+    },
+    {
+      "id": "s010_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "aug"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s020",
+      "action": "create",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "fiscalyear_lock_date": "2026-08-31"
+      },
+      "save_as": "wiz"
+    },
+    {
+      "id": "s030",
+      "action": "call",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "wiz"
+      },
+      "method": "change_lock_date"
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "res.company",
+      "target": {
+        "$ref": "base.main_company"
+      },
+      "expect": {
+        "fields": {
+          "fiscalyear_lock_date": {
+            "eq": "2026-08-31"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-08-20",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 400,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        },
+        "ref": "LR-AUG-LATE"
+      },
+      "save_as": "late"
+    },
+    {
+      "id": "s050_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "late"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s060",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "late"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "invoice_date": {
+            "eq": "2026-08-20"
+          },
+          "date": {
+            "ne": "2026-08-20"
+          }
+        }
+      }
+    },
+    {
+      "id": "s070",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "id",
+          "=",
+          {
+            "$var": "late"
+          }
+        ],
+        [
+          "date",
+          ">",
+          "2026-08-31"
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "company_locks",
+      "model": "res.company",
+      "target": {
+        "$ref": "base.main_company"
+      },
+      "fields": [
+        "fiscalyear_lock_date",
+        "hard_lock_date"
+      ],
+      "screenshot": false
+    },
+    {
+      "label": "late_august_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "late"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    }
+  ]
+}

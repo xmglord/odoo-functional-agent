@@ -1,0 +1,272 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_bank_multi_invoice_partial",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "One bank transfer of 2,000 matched with two invoices of 1,150: one closes, the other shows 300 still owed.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-10",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 1000,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "inv1"
+    },
+    {
+      "id": "s010_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "inv1"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s020_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-10",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 1000,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "inv2"
+    },
+    {
+      "id": "s020_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "inv2"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s030",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "in",
+          [
+            {
+              "$var": "inv1"
+            },
+            {
+              "$var": "inv2"
+            }
+          ]
+        ],
+        [
+          "display_type",
+          "=",
+          "payment_term"
+        ]
+      ],
+      "save_as": "recv",
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    },
+    {
+      "id": "s040_st",
+      "action": "create",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "journal_id": 6,
+        "date": "2026-10-15",
+        "amount": 2000.0,
+        "partner_id": 58,
+        "payment_ref": "Harbor Point transfer two invoices"
+      },
+      "save_as": "st"
+    },
+    {
+      "id": "s040_match",
+      "action": "call",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "st"
+      },
+      "method": "set_line_bank_statement_line",
+      "params": {
+        "move_lines_ids": {
+          "$var": "recv"
+        }
+      }
+    },
+    {
+      "id": "s050",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "id",
+          "in",
+          [
+            {
+              "$var": "inv1"
+            },
+            {
+              "$var": "inv2"
+            }
+          ]
+        ],
+        [
+          "payment_state",
+          "=",
+          "paid"
+        ],
+        [
+          "amount_residual",
+          "=",
+          0
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s060",
+      "action": "search",
+      "model": "account.move",
+      "domain": [
+        [
+          "id",
+          "in",
+          [
+            {
+              "$var": "inv1"
+            },
+            {
+              "$var": "inv2"
+            }
+          ]
+        ],
+        [
+          "payment_state",
+          "=",
+          "partial"
+        ],
+        [
+          "amount_residual",
+          "=",
+          300
+        ]
+      ],
+      "expect": {
+        "count": 1
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "invoice_1",
+      "model": "account.move",
+      "target": {
+        "$var": "inv1"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "invoice_2",
+      "model": "account.move",
+      "target": {
+        "$var": "inv2"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_neg_clerk_lock_date",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "NEGATIVE (expected fail at s010): the clerk cannot open the lock date wizard to reopen August.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "fiscalyear_lock_date": "2026-07-31"
+      },
+      "save_as": "wiz"
+    },
+    {
+      "id": "s020",
+      "action": "call",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "wiz"
+      },
+      "method": "change_lock_date"
+    }
+  ]
+}

@@ -1,0 +1,154 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_unassigned_analytic_flagged",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "A clerk draft invoice line without project and department is flagged invalid (the Post button refuses it); a fully assigned line is not.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-19",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 500,
+              "name": "No analytic"
+            },
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 500,
+              "name": "Assigned",
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "inv"
+    },
+    {
+      "id": "s020",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "=",
+          {
+            "$var": "inv"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "product"
+        ],
+        [
+          "name",
+          "=",
+          "No analytic"
+        ]
+      ],
+      "save_as": "bad",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s030",
+      "action": "assert",
+      "model": "account.move.line",
+      "target": {
+        "$var": "bad"
+      },
+      "expect": {
+        "fields": {
+          "has_invalid_analytics": {
+            "eq": true
+          }
+        }
+      }
+    },
+    {
+      "id": "s040",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "=",
+          {
+            "$var": "inv"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "product"
+        ],
+        [
+          "name",
+          "=",
+          "Assigned"
+        ]
+      ],
+      "save_as": "good",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s050",
+      "action": "assert",
+      "model": "account.move.line",
+      "target": {
+        "$var": "good"
+      },
+      "expect": {
+        "fields": {
+          "has_invalid_analytics": {
+            "eq": false
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "draft_invoice_missing_analytic",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "fields": [
+        "name",
+        "state",
+        "partner_id",
+        "amount_untaxed"
+      ],
+      "screenshot": true
+    }
+  ]
+}

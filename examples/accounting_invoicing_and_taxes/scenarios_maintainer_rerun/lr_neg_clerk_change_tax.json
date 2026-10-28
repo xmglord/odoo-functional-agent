@@ -1,0 +1,37 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_neg_clerk_change_tax",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Negative: the clerk cannot change a tax.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "write",
+      "model": "account.tax",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$ref": "account.1_sale_tax_template"
+      },
+      "values": {
+        "amount": 10
+      },
+      "expect_error": {
+        "class": "AccessError",
+        "message_contains": "You are not allowed to modify 'Tax' (account.tax) records."
+      }
+    }
+  ]
+}

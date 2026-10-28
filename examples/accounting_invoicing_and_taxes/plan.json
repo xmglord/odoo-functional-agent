@@ -1,0 +1,1097 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Lumen Ridge Studios: invoicing, payments and monthly close",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "areas": [
+    "accounting",
+    "sales_crm"
+  ],
+  "operations": [
+    {
+      "id": "op_010_install_accountant",
+      "type": "install_modules",
+      "modules": [
+        "accountant"
+      ],
+      "depends_on": [],
+      "rationale": "Bank reconciliation, the monthly close and analytic reports need the full Accounting app (accountant), not Invoicing only.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/invoicing_vs_accounting_apps.md"
+      ],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_020_settings",
+      "type": "set_settings",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "group_analytic_accounting": true,
+        "group_product_pricelist": true
+      },
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Analytic distribution on invoice and bill lines, and pricelists so European customers get a euro pricelist.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_030_currency_eur",
+      "type": "upsert_record",
+      "model": "res.currency",
+      "key": "eur",
+      "values": {
+        "active": true
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "EUR"
+        ],
+        [
+          "active",
+          "in",
+          [
+            true,
+            false
+          ]
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Activating EUR turns on multi-currency; euro invoices and the euro bank journal need it.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/multi_currency.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_bank_eur",
+      "type": "upsert_record",
+      "model": "account.journal",
+      "key": "bank_eur",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Bank EUR",
+        "code": "BNKEU",
+        "type": "bank",
+        "currency_id": {
+          "$ref": "__ofa__.eur"
+        },
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "code",
+          "=",
+          "BNKEU"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.main_company"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_030_currency_eur"
+      ],
+      "rationale": "The euro bank account is its own bank journal in EUR, with its own liquidity account and statements.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/journals.md",
+        "knowledge/20.0/accounting/multi_currency.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_export_fpos",
+      "type": "upsert_record",
+      "model": "account.fiscal.position",
+      "key": "export_fpos",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Foreign Trade",
+        "auto_apply": true,
+        "note": "<p>Export of services: not subject to sales tax.</p>"
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "account.1_template_generic_export_fiscal_position"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "The chart's auto-applied Foreign Trade position already maps 15% to 0% for customers abroad; add the legal mention printed on their invoices.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_060_export_tax_label",
+      "type": "upsert_record",
+      "model": "account.tax",
+      "key": "export_tax",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "invoice_label": "0% (export of services)",
+        "fiscal_position_ids": {
+          "$set": [
+            {
+              "$ref": "__ofa__.export_fpos"
+            }
+          ]
+        },
+        "original_tax_ids": {
+          "$set": [
+            {
+              "$ref": "account.1_sale_tax_template"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "account.1_sale_export_tax_template"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_050_export_fpos"
+      ],
+      "rationale": "The 0% export tax replaces the domestic 15% under Foreign Trade and shows why on each invoice line.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_070_product_project",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_project",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Fixed-price project",
+        "type": "service",
+        "sale_ok": true,
+        "purchase_ok": false,
+        "invoice_policy": "order",
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.1_sale_tax_template"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Fixed-price project"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Service product carrying the domestic 15% tax: Project work sold by sales order and invoiced 30% down payment then final invoice.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_080_product_retainer",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_retainer",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Monthly retainer",
+        "type": "service",
+        "sale_ok": true,
+        "purchase_ok": false,
+        "invoice_policy": "order",
+        "taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.1_sale_tax_template"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Monthly retainer"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Service product carrying the domestic 15% tax: Retainer fee invoiced each month.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_090_product_subcontract",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_subcontract",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Subcontracted work",
+        "type": "service",
+        "sale_ok": false,
+        "purchase_ok": true,
+        "invoice_policy": "order",
+        "supplier_taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.1_purchase_tax_template"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Subcontracted work"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Service product carrying the domestic 15% tax: Subcontractor bills.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_100_product_software",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "prod_software",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Software subscription",
+        "type": "service",
+        "sale_ok": false,
+        "purchase_ok": true,
+        "invoice_policy": "order",
+        "supplier_taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.1_purchase_tax_template"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Software subscription"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Service product carrying the domestic 15% tax: Software subscription bills.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/taxes_and_tax_groups.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_110_term_retainer",
+      "type": "upsert_record",
+      "model": "account.payment.term",
+      "key": "term_retainer",
+      "values": {
+        "name": "Retainer: 15 days, 2% within 10 days",
+        "early_discount": true,
+        "discount_percentage": 2.0,
+        "discount_days": 10,
+        "early_pay_discount_computation": "included"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Retainer: 15 days, 2% within 10 days"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Retainers are due in 15 days with a 2% early payment discount within 10 days; 'included' reduces the tax in proportion when the discount is taken.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_120_term_retainer_line",
+      "type": "upsert_record",
+      "model": "account.payment.term.line",
+      "key": "term_retainer_line",
+      "values": {
+        "value": "percent",
+        "value_amount": 100.0,
+        "delay_type": "days_after",
+        "nb_days": 15
+      },
+      "match": [
+        [
+          "payment_id",
+          "=",
+          {
+            "$ref": "__ofa__.term_retainer"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_110_term_retainer"
+      ],
+      "rationale": "The single 100% installment of the retainer term falls due 15 days after the invoice date.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_130_dept_design",
+      "type": "upsert_record",
+      "model": "account.analytic.account",
+      "key": "dept_design",
+      "values": {
+        "name": "Design",
+        "plan_id": {
+          "$ref": "analytic.analytic_plan_departments"
+        },
+        "company_id": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Design"
+        ],
+        [
+          "plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_departments"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Department Design as an analytic account of the existing Departments plan.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_140_dept_engineering",
+      "type": "upsert_record",
+      "model": "account.analytic.account",
+      "key": "dept_engineering",
+      "values": {
+        "name": "Engineering",
+        "plan_id": {
+          "$ref": "analytic.analytic_plan_departments"
+        },
+        "company_id": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Engineering"
+        ],
+        [
+          "plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_departments"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Department Engineering as an analytic account of the existing Departments plan.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_150_proj_brand",
+      "type": "upsert_record",
+      "model": "account.analytic.account",
+      "key": "proj_brand",
+      "values": {
+        "name": "Brand Refresh",
+        "code": "LR-001",
+        "plan_id": {
+          "$ref": "analytic.analytic_plan_projects"
+        },
+        "company_id": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Brand Refresh"
+        ],
+        [
+          "plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_projects"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Project LR-001 as an analytic account of the existing Project plan.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_160_proj_portal",
+      "type": "upsert_record",
+      "model": "account.analytic.account",
+      "key": "proj_portal",
+      "values": {
+        "name": "Client Portal",
+        "code": "LR-002",
+        "plan_id": {
+          "$ref": "analytic.analytic_plan_projects"
+        },
+        "company_id": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Client Portal"
+        ],
+        [
+          "plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_projects"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Project LR-002 as an analytic account of the existing Project plan.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_170_proj_retainer",
+      "type": "upsert_record",
+      "model": "account.analytic.account",
+      "key": "proj_retainer",
+      "values": {
+        "name": "Cedar Lane Retainer",
+        "code": "LR-003",
+        "plan_id": {
+          "$ref": "analytic.analytic_plan_projects"
+        },
+        "company_id": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Cedar Lane Retainer"
+        ],
+        [
+          "plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_projects"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Project LR-003 as an analytic account of the existing Project plan.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_180_mandatory_projects_invoice",
+      "type": "upsert_record",
+      "model": "account.analytic.applicability",
+      "key": "applic_projects_invoice",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "analytic_plan_id": {
+          "$ref": "analytic.analytic_plan_projects"
+        },
+        "business_domain": "invoice",
+        "applicability": "mandatory",
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "analytic_plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_projects"
+          }
+        ],
+        [
+          "business_domain",
+          "=",
+          "invoice"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.main_company"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Every invoice line must be 100% distributed on the projects plan, or posting is refused.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_190_mandatory_projects_bill",
+      "type": "upsert_record",
+      "model": "account.analytic.applicability",
+      "key": "applic_projects_bill",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "analytic_plan_id": {
+          "$ref": "analytic.analytic_plan_projects"
+        },
+        "business_domain": "bill",
+        "applicability": "mandatory",
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "analytic_plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_projects"
+          }
+        ],
+        [
+          "business_domain",
+          "=",
+          "bill"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.main_company"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Every bill line must be 100% distributed on the projects plan, or posting is refused.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_200_mandatory_departments_invoice",
+      "type": "upsert_record",
+      "model": "account.analytic.applicability",
+      "key": "applic_departments_invoice",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "analytic_plan_id": {
+          "$ref": "analytic.analytic_plan_departments"
+        },
+        "business_domain": "invoice",
+        "applicability": "mandatory",
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "analytic_plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_departments"
+          }
+        ],
+        [
+          "business_domain",
+          "=",
+          "invoice"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.main_company"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Every invoice line must be 100% distributed on the departments plan, or posting is refused.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_210_mandatory_departments_bill",
+      "type": "upsert_record",
+      "model": "account.analytic.applicability",
+      "key": "applic_departments_bill",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "analytic_plan_id": {
+          "$ref": "analytic.analytic_plan_departments"
+        },
+        "business_domain": "bill",
+        "applicability": "mandatory",
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "analytic_plan_id",
+          "=",
+          {
+            "$ref": "analytic.analytic_plan_departments"
+          }
+        ],
+        [
+          "business_domain",
+          "=",
+          "bill"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.main_company"
+          }
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings"
+      ],
+      "rationale": "Every bill line must be 100% distributed on the departments plan, or posting is refused.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/analytic_accounting.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_220_pricelist_eur",
+      "type": "upsert_record",
+      "model": "product.pricelist",
+      "key": "pricelist_eur",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Europe (EUR)",
+        "currency_id": {
+          "$ref": "__ofa__.eur"
+        },
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Europe (EUR)"
+        ]
+      ],
+      "depends_on": [
+        "op_020_settings",
+        "op_030_currency_eur"
+      ],
+      "rationale": "A euro pricelist makes sales orders, and so their invoices, come out in EUR for European customers.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/multi_currency.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_230_cust_cedar",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "cust_cedar",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Cedar Lane Bakery",
+        "country_id": {
+          "$ref": "base.us"
+        },
+        "property_payment_term_id": {
+          "$ref": "__ofa__.term_retainer"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Cedar Lane Bakery"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant",
+        "op_120_term_retainer_line"
+      ],
+      "rationale": "Domestic retainer customer; its default term is the retainer term.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_240_cust_harbor",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "cust_harbor",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Harbor Point Logistics",
+        "country_id": {
+          "$ref": "base.us"
+        },
+        "property_payment_term_id": {
+          "$ref": "account.account_payment_term_30days"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Harbor Point Logistics"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Domestic project customer; final project invoices are due in 30 days.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_250_cust_nordlicht",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "cust_nordlicht",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Nordlicht Werkstatt GmbH",
+        "country_id": {
+          "$ref": "base.de"
+        },
+        "property_payment_term_id": {
+          "$ref": "account.account_payment_term_30days"
+        },
+        "property_product_pricelist": {
+          "$ref": "__ofa__.pricelist_eur"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Nordlicht Werkstatt GmbH"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant",
+        "op_220_pricelist_eur"
+      ],
+      "rationale": "European customer: invoiced in EUR through the euro pricelist; Foreign Trade applies from its country.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_260_vend_pixel",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "vend_pixel",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "Pixel Forge Contractors",
+        "country_id": {
+          "$ref": "base.us"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Pixel Forge Contractors"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Domestic subcontractor.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_270_vend_clouddesk",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "vend_clouddesk",
+      "company": {
+        "$ref": "base.main_company"
+      },
+      "values": {
+        "name": "CloudDesk Software",
+        "country_id": {
+          "$ref": "base.us"
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "CloudDesk Software"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Domestic software vendor.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/fiscal_positions.md",
+        "knowledge/20.0/accounting/payment_terms.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_280_no_manual_entries",
+      "type": "upsert_record",
+      "model": "ir.access",
+      "key": "restrict_manual_entries",
+      "values": {
+        "name": "Lumen Ridge: only accounting users create or change journal entries",
+        "model_id": {
+          "$ref": "account.model_account_move"
+        },
+        "operation": "cud",
+        "domain": "[('move_type', '!=', 'entry')] if not user.has_group('account.group_account_user') else []"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Lumen Ridge: only accounting users create or change journal entries"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "The Invoicing group has full CRUD on account.move; this global restriction stops users without Bookkeeper rights from creating, changing or deleting miscellaneous entries.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/invoicing_vs_accounting_apps.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_500_role_clerk",
+      "type": "upsert_record",
+      "model": "res.users",
+      "key": "role_clerk",
+      "values": {
+        "name": "Billing clerk (test identity)",
+        "group_ids": {
+          "$set": [
+            {
+              "$ref": "base.group_user"
+            },
+            {
+              "$ref": "account.group_account_invoice"
+            },
+            {
+              "$ref": "sales_team.group_sale_salesman"
+            }
+          ]
+        },
+        "company_ids": {
+          "$set": [
+            {
+              "$ref": "base.main_company"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "login",
+          "=",
+          "ofa_user_1"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Billing clerk: Invoicing rights and sales orders, no accounting or administrator rights.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/invoicing_vs_accounting_apps.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_510_role_accountant",
+      "type": "upsert_record",
+      "model": "res.users",
+      "key": "role_accountant",
+      "values": {
+        "name": "Accountant (test identity)",
+        "group_ids": {
+          "$set": [
+            {
+              "$ref": "base.group_user"
+            },
+            {
+              "$ref": "account.group_account_manager"
+            }
+          ]
+        },
+        "company_ids": {
+          "$set": [
+            {
+              "$ref": "base.main_company"
+            }
+          ]
+        },
+        "company_id": {
+          "$ref": "base.main_company"
+        }
+      },
+      "match": [
+        [
+          "login",
+          "=",
+          "ofa_user_2"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_accountant"
+      ],
+      "rationale": "Accountant: Accounting Administrator, who posts adjustments and changes lock dates.",
+      "knowledge_refs": [
+        "knowledge/20.0/accounting/invoicing_vs_accounting_apps.md",
+        "knowledge/20.0/accounting/lock_dates.md"
+      ],
+      "edition": "community"
+    }
+  ]
+}

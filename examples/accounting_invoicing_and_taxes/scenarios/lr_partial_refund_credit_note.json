@@ -1,0 +1,417 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_partial_refund_credit_note",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Partial refund of a paid invoice: credit note from the reversal wizard tied to the invoice, refunded through the bank.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-10-12",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 1000,
+              "analytic_distribution": {
+                "26,25": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "inv"
+    },
+    {
+      "id": "s010_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "inv"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s020",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "in",
+          {
+            "$var": "inv"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "payment_term"
+        ]
+      ],
+      "save_as": "recv",
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    },
+    {
+      "id": "s030_st",
+      "action": "create",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "journal_id": 6,
+        "date": "2026-10-14",
+        "amount": 1150.0,
+        "partner_id": 58,
+        "payment_ref": "Harbor Point invoice payment"
+      },
+      "save_as": "st"
+    },
+    {
+      "id": "s030_match",
+      "action": "call",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "st"
+      },
+      "method": "set_line_bank_statement_line",
+      "params": {
+        "move_lines_ids": {
+          "$var": "recv"
+        }
+      }
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "expect": {
+        "fields": {
+          "payment_state": {
+            "eq": "paid"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050",
+      "action": "create",
+      "model": "account.move.reversal",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "move_ids": {
+          "$set": [
+            {
+              "$var": "inv"
+            }
+          ]
+        },
+        "journal_id": 1,
+        "date": "2026-10-20",
+        "reason": "Partial refund: reduced scope",
+        "company_id": 1
+      },
+      "save_as": "rev"
+    },
+    {
+      "id": "s060",
+      "action": "call",
+      "model": "account.move.reversal",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "rev"
+      },
+      "method": "refund_moves"
+    },
+    {
+      "id": "s070",
+      "action": "search",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "domain": [
+        [
+          "reversed_entry_id",
+          "=",
+          {
+            "$var": "inv"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_refund"
+        ]
+      ],
+      "save_as": "cn",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s080",
+      "action": "search",
+      "model": "account.move.line",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "domain": [
+        [
+          "move_id",
+          "in",
+          {
+            "$var": "cn"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "product"
+        ]
+      ],
+      "save_as": "cnl",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s090",
+      "action": "write",
+      "model": "account.move.line",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "cnl"
+      },
+      "values": {
+        "price_unit": 200
+      }
+    },
+    {
+      "id": "s100",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "cn"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s110",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "cn"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "move_type": {
+            "eq": "out_refund"
+          },
+          "reversed_entry_id": {
+            "eq": {
+              "$var": "inv"
+            }
+          },
+          "amount_total": {
+            "eq": 230
+          },
+          "amount_tax": {
+            "eq": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "s120",
+      "action": "search",
+      "model": "account.move.line",
+      "domain": [
+        [
+          "move_id",
+          "in",
+          {
+            "$var": "cn"
+          }
+        ],
+        [
+          "display_type",
+          "=",
+          "payment_term"
+        ]
+      ],
+      "save_as": "cn_recv",
+      "expect": {
+        "count": {
+          "gte": 1
+        }
+      }
+    },
+    {
+      "id": "s130_st",
+      "action": "create",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "journal_id": 6,
+        "date": "2026-10-22",
+        "amount": -230.0,
+        "partner_id": 58,
+        "payment_ref": "Refund to Harbor Point"
+      },
+      "save_as": "st_out"
+    },
+    {
+      "id": "s130_match",
+      "action": "call",
+      "model": "account.bank.statement.line",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "st_out"
+      },
+      "method": "set_line_bank_statement_line",
+      "params": {
+        "move_lines_ids": {
+          "$var": "cn_recv"
+        }
+      }
+    },
+    {
+      "id": "s140",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "cn"
+      },
+      "expect": {
+        "fields": {
+          "payment_state": {
+            "eq": "paid"
+          },
+          "amount_residual": {
+            "eq": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "s150",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "expect": {
+        "fields": {
+          "payment_state": {
+            "eq": "paid"
+          },
+          "amount_residual": {
+            "eq": 0
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "original_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "inv"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": false
+    },
+    {
+      "label": "credit_note",
+      "model": "account.move",
+      "target": {
+        "$var": "cn"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state",
+        "move_type",
+        "reversed_entry_id"
+      ],
+      "screenshot": true
+    }
+  ]
+}

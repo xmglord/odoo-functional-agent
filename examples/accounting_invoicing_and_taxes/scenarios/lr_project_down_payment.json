@@ -1,0 +1,343 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_project_down_payment",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Project order: 30% down payment invoice at signature, final invoice for the remaining 70% due in 30 days.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "sale.order",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "partner_id": 58,
+        "order_line": {
+          "$create": [
+            {
+              "product_id": 59,
+              "product_uom_qty": 1,
+              "price_unit": 10000,
+              "analytic_distribution": {
+                "26,25": 100
+              }
+            }
+          ]
+        }
+      },
+      "save_as": "so"
+    },
+    {
+      "id": "s020",
+      "action": "call",
+      "model": "sale.order",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "so"
+      },
+      "method": "action_confirm"
+    },
+    {
+      "id": "s030",
+      "action": "create",
+      "model": "sale.advance.payment.inv",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "sale_order_ids": {
+          "$set": [
+            {
+              "$var": "so"
+            }
+          ]
+        },
+        "advance_payment_method": "percentage",
+        "amount": 30
+      },
+      "save_as": "wiz_dp"
+    },
+    {
+      "id": "s040",
+      "action": "call",
+      "model": "sale.advance.payment.inv",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "wiz_dp"
+      },
+      "method": "create_invoices"
+    },
+    {
+      "id": "s050",
+      "action": "search",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "domain": [
+        [
+          "line_ids.sale_line_ids.order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_invoice"
+        ]
+      ],
+      "save_as": "dp",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s060",
+      "action": "write",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "dp"
+      },
+      "values": {
+        "invoice_date": "2026-10-01"
+      }
+    },
+    {
+      "id": "s070",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "dp"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s080",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "dp"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "amount_untaxed": {
+            "eq": 3000
+          },
+          "amount_tax": {
+            "eq": 450
+          }
+        }
+      }
+    },
+    {
+      "id": "s090",
+      "action": "create",
+      "model": "sale.advance.payment.inv",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "values": {
+        "sale_order_ids": {
+          "$set": [
+            {
+              "$var": "so"
+            }
+          ]
+        },
+        "advance_payment_method": "delivered"
+      },
+      "save_as": "wiz_final"
+    },
+    {
+      "id": "s100",
+      "action": "call",
+      "model": "sale.advance.payment.inv",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "wiz_final"
+      },
+      "method": "create_invoices"
+    },
+    {
+      "id": "s110",
+      "action": "search",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "domain": [
+        [
+          "line_ids.sale_line_ids.order_id",
+          "=",
+          {
+            "$var": "so"
+          }
+        ],
+        [
+          "move_type",
+          "=",
+          "out_invoice"
+        ],
+        [
+          "id",
+          "not in",
+          {
+            "$var": "dp"
+          }
+        ]
+      ],
+      "save_as": "final",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s120",
+      "action": "write",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "final"
+      },
+      "values": {
+        "invoice_date": "2026-10-20"
+      }
+    },
+    {
+      "id": "s130",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_clerk"
+      },
+      "target": {
+        "$var": "final"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s140",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "final"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "amount_untaxed": {
+            "eq": 7000
+          },
+          "amount_tax": {
+            "eq": 1050
+          },
+          "invoice_payment_term_id": {
+            "eq": {
+              "$ref": "account.account_payment_term_30days"
+            }
+          },
+          "invoice_date_due": {
+            "eq": "2026-11-19"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "down_payment_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "dp"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "final_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "final"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": true
+    },
+    {
+      "label": "project_order",
+      "model": "sale.order",
+      "target": {
+        "$var": "so"
+      },
+      "fields": [
+        "name",
+        "state",
+        "amount_untaxed",
+        "invoice_status"
+      ],
+      "screenshot": false
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_neg_accountant_edit_closed",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "Negative: even the accountant cannot reset an August invoice to draft while August is closed.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$search": {
+          "model": "account.move",
+          "domain": [
+            [
+              "ref",
+              "=",
+              "LR-AUG-CLOSE"
+            ]
+          ]
+        }
+      },
+      "method": "button_draft",
+      "expect_error": {
+        "class": "UserError",
+        "message_contains": "You cannot add/modify entries prior to and inclusive of: Global Lock Date"
+      }
+    }
+  ]
+}

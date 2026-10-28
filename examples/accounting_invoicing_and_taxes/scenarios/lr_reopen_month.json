@@ -1,0 +1,193 @@
+{
+  "format": "ofa.scenario/1",
+  "id": "lr_reopen_month",
+  "area": "accounting",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "description": "The accountant reopens August on purpose (1-hour exception for themselves, with a reason) and posts into it.",
+  "requires": {
+    "modules": [
+      "accountant",
+      "sale_management"
+    ]
+  },
+  "company": {
+    "$ref": "base.main_company"
+  },
+  "steps": [
+    {
+      "id": "s010",
+      "action": "create",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "fiscalyear_lock_date": "2026-07-31",
+        "exception_applies_to": "me",
+        "exception_duration": "1h",
+        "exception_reason": "Auditor adjustment for August"
+      },
+      "save_as": "wiz"
+    },
+    {
+      "id": "s020",
+      "action": "call",
+      "model": "account.change.lock.date",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "wiz"
+      },
+      "method": "change_lock_date"
+    },
+    {
+      "id": "s030",
+      "action": "search",
+      "model": "account.lock_exception",
+      "domain": [
+        [
+          "company_id",
+          "=",
+          1
+        ],
+        [
+          "lock_date_field",
+          "=",
+          "fiscalyear_lock_date"
+        ],
+        [
+          "user_id",
+          "=",
+          {
+            "$ref": "__ofa__.role_accountant"
+          }
+        ],
+        [
+          "state",
+          "=",
+          "active"
+        ]
+      ],
+      "save_as": "exc",
+      "expect": {
+        "count": 1
+      }
+    },
+    {
+      "id": "s040",
+      "action": "assert",
+      "model": "res.company",
+      "target": {
+        "$ref": "base.main_company"
+      },
+      "expect": {
+        "fields": {
+          "fiscalyear_lock_date": {
+            "eq": "2026-08-31"
+          }
+        }
+      }
+    },
+    {
+      "id": "s050_create",
+      "action": "create",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "values": {
+        "move_type": "out_invoice",
+        "partner_id": 58,
+        "invoice_date": "2026-08-25",
+        "invoice_line_ids": {
+          "$create": [
+            {
+              "product_id": 59,
+              "quantity": 1,
+              "price_unit": 300,
+              "analytic_distribution": {
+                "26,24": 100
+              }
+            }
+          ]
+        },
+        "ref": "LR-AUG-REOPENED"
+      },
+      "save_as": "adj"
+    },
+    {
+      "id": "s050_post",
+      "action": "call",
+      "model": "account.move",
+      "as": {
+        "$ref": "__ofa__.role_accountant"
+      },
+      "target": {
+        "$var": "adj"
+      },
+      "method": "action_post"
+    },
+    {
+      "id": "s060",
+      "action": "assert",
+      "model": "account.move",
+      "target": {
+        "$var": "adj"
+      },
+      "expect": {
+        "fields": {
+          "state": {
+            "eq": "posted"
+          },
+          "date": {
+            "eq": "2026-08-25"
+          }
+        }
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "label": "lock_exception",
+      "model": "account.lock_exception",
+      "target": {
+        "$var": "exc"
+      },
+      "fields": [
+        "user_id",
+        "lock_date_field",
+        "lock_date",
+        "reason",
+        "state",
+        "end_datetime"
+      ],
+      "screenshot": false
+    },
+    {
+      "label": "reopened_invoice",
+      "model": "account.move",
+      "target": {
+        "$var": "adj"
+      },
+      "fields": [
+        "name",
+        "partner_id",
+        "state",
+        "currency_id",
+        "fiscal_position_id",
+        "invoice_payment_term_id",
+        "invoice_date",
+        "invoice_date_due",
+        "date",
+        "amount_untaxed",
+        "amount_tax",
+        "amount_total",
+        "amount_residual",
+        "payment_state"
+      ],
+      "screenshot": false
+    }
+  ]
+}
