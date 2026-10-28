@@ -18,7 +18,12 @@ Every step uses only the loopback demo server. Never open any other host.
 2. Tell the user to keep the browser window **visible on screen** (not covered, minimized or on another
    workspace) until you say you are done. With the window off screen, pages may stop painting.
 3. Call `list_pages` and reuse the open tab; use `new_page` only if there is none.
-4. Call `set_viewport_size` with 1280 x 800. A narrow window switches Odoo to its mobile layout.
+4. Do not rely on `set_viewport_size`: on this setup it does not change the size. Firefox needs
+   `-remote-allow-system-access` for it, which the MCP profile is not started with; firefox-devtools-mcp 0.10.7
+   answers "System access is required", and an earlier version answered success without resizing (every screenshot
+   of the examples is 1228 x 662). After logging in, read `[window.innerWidth, window.innerHeight]` with
+   `evaluate_script`: at 1024 px wide or more Odoo shows its desktop layout. Narrower than that, ask the user to
+   widen the window. Say the actual size in your reply.
 
 ## 2. Log in to the demo database
 
@@ -36,7 +41,11 @@ in demo databases served on loopback.
    `evaluate_script` with
    `() => [document.querySelector('input[name=login]').value, document.querySelector('input[name=password]').value.length]`
    must return `["admin", 5]`.
-4. `click_by_uid` on "Log in".
+4. `click_by_uid` on "Log in", then wait until the browser has left the login page before navigating anywhere:
+   `evaluate_script` with `timeout: 25000` and
+   `() => new Promise(r => { const t0 = Date.now(); const tick = () => { const ok = new URL(document.URL).pathname.startsWith('/odoo'); if (ok || Date.now() - t0 > 20000) { r({ok, url: document.URL}); } else { setTimeout(tick, 250); } }; tick(); })`.
+   Navigating while the log-in is still being submitted cancels it, and the next page lands on the database
+   selector.
 
 ## 3. One screenshot per target
 
@@ -84,8 +93,10 @@ When the screenshots are done (or the procedure stopped after logging in), log o
 keep a session for this database: once it is dropped, that session sends the next run's login to the database
 selector.
 
-1. `evaluate_script` with
-   `() => { document.querySelector('.o_menu_systray .o_user_menu').click(); return true; }`, then
-   `() => { document.querySelector('.o-dropdown--menu .dropdown-item[data-menu="logout"]').click(); return true; }`.
-   (`/web/session/logout` answers 405 to a plain navigation: logging out is a POST.)
+1. Log out with clicks, not with a script: the plugin's guard refuses `.click()` inside `evaluate_script`.
+   `take_snapshot` with `maxLines: 40` and no selector (a selector on the menu bar has failed with "str.substring
+   is not a function"). In the top bar, the user menu is the last `button` of the systray, the one holding the
+   avatar `img` and "User is online"; `click_by_uid` on it. Then `take_snapshot` with
+   `selector: ".o-dropdown--menu"` and `includeAll: true`, and `click_by_uid` on the `menuitem` whose text is
+   "Log out". (`/web/session/logout` answers 405 to a plain navigation: logging out is a POST.)
 2. Check that `document.URL` now contains `/web/login`. Say in your reply whether the log-out worked.
