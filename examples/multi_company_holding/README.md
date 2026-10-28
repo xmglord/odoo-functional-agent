@@ -41,7 +41,8 @@ After the final run the skill corrected one description in plan.md (Decision 9, 
 
 ## What the author contributed
 
-No manual UI work. The author's part, with what the author's review session suggested marked as such:
+No manual UI work. The author's part, with what the author's review session (a separate Claude Code session the author
+used to review plans before approving) suggested marked as such:
 
 1. **The requirement.**
 2. **Two answers at intake.**
@@ -93,12 +94,12 @@ companies.` when creating a customer invoice whose line has a tax. Without a tax
 order with taxes is created, and a user who also has Foods creates the same invoice in the branch.
 
 The skill deduced a cause in `account_reports` (a company switch to the root without superuser rights in
-`account_return.py`) and said it had not verified it. **The maintainer reproduced it on a throwaway database with
-a traceback, and the cause is elsewhere**: `l10n_mx_edi` (Enterprise), installed in the demo template for its
-Mexican companies, hooks into every invoice line's tax computation whatever the company's country
-(`account.tax._l10n_mx_edi_is_generic_local_tax`, `l10n_mx_edi/models/account_tax.py`) and there switches to the
-tax's company without superuser rights. A branch uses its root company's taxes, so the switch goes to a company the
-branch-only user is not allowed. With that one method changed to switch with superuser rights, the same user
+`account_return.py`) and said it had not verified it. **The maintainer traced it on a disposable database with a
+traceback (the reproduction is not published), and the cause is elsewhere**: `l10n_mx_edi` (Enterprise), installed in
+the demo template for its Mexican companies, hooks into every invoice line's tax computation whatever the company's
+country (`account.tax._l10n_mx_edi_is_generic_local_tax`, `l10n_mx_edi/models/account_tax.py`) and there switches to
+the tax's company without superuser rights. A branch uses its root company's taxes, so the switch goes to a company
+the branch-only user is not allowed. With that one method changed to switch with superuser rights, the same user
 creates the invoice. 19.0's `l10n_mx_edi` has no such method.
 
 **So the branch decision rests on a defect that depends on what the template has installed**, not on how branches

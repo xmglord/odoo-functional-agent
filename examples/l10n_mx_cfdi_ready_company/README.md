@@ -10,9 +10,9 @@ is").
 
 **Stamping branch: STAMPS.** Every CFDI in the runs below was really stamped, and the cancellations really sent,
 against the **test environment of a third-party PAC** (Quadrum), over the internet, on 2026-10-28. A re-run needs
-internet access and depends on that test service being up. **The demo CSDs expire on 2027-05-18 (company 4, used
-here) and 2027-01-18 (company 5)**; after that date a re-run of this example stops stamping because of the
-certificate, not because of the configuration.
+internet access and depends on that test service being up. **The demo CSDs expire on 2027-05-18 (company 4, used here)
+and 2027-01-18 (company 5)**, as shipped in the `l10n_mx_edi` 20.0 demo data (read on 2026-10-26); after that date a
+re-run of this example stops stamping because of the certificate, not because of the configuration.
 
 What to look at, in order:
 
@@ -58,11 +58,12 @@ No manual UI work. The author's part:
 
 1. **The requirement.**
 2. **One answer at intake.** Standard Odoo does not stop a clerk from stamping when a customer's fiscal data is
-   incomplete: with an RFC but no fiscal ZIP the invoice silently goes out to the general public, and a missing
-   regime defaults to 601 and the PAC rejects it. The skill offered an automated rule (an `ir.actions.server` with
-   a short **Python** snippet that refuses to post) or standard behaviour plus a documented check. The author chose
-   the rule, the skill's recommendation (the author's review session also recommended it: there is no standard
-   alternative). The plan therefore carries custom code: `op_110_cfdi_guard_action`.
+   incomplete: with an RFC but no fiscal ZIP the invoice silently goes out to the general public, and a missing regime
+   defaults to 601 and the PAC rejects it. The skill offered an automated rule (an `ir.actions.server` with a short
+   **Python** snippet that refuses to post) or standard behaviour plus a documented check. The author chose the rule,
+   the skill's recommendation (the author's review session, a separate Claude Code session the author used to review
+   plans before approving, also recommended it: there is no standard alternative). The plan therefore carries custom
+   code: `op_110_cfdi_guard_action`.
 3. **The first approval, with a change to the Test plan for need 6:** before leaving the SAT files as Not tested,
    try to generate both XML files over RPC through the trial balance's public handler methods, and report the exact
    error if it fails.
@@ -107,13 +108,13 @@ plan archives it (`op_120_archive_stray_account`). The 19.0 template has no subg
 
 ## How the session ran
 
-Permission mode: **`auto`** (all 53 permission-mode records of its transcript). The session was launched with
-`--allowedTools "Bash(ofa *)"`, which the maintainer had suggested as if it limited the session to `ofa`; it did not:
-89 of its 91 shell commands were not a plain `ofa` command (`cd … && ofa …`, `grep`, `sed`, `python3` on the Odoo
-source), and the mode approved them, including a `sleep 300` before the cancellation retry, without the author seeing
-a prompt. Later example sessions are launched without that option. The plugin's guard hook did run on every command
-and refused the in-page `.click()`. The guard does not depend on the permission mode (see "The permission mode is not
-a layer" in `docs/guard.md`).
+Permission mode: **`auto`** (all 53 permission-mode records of its transcript; measured from the session transcript on
+2026-10-28, and the transcript is not kept). The session was launched with `--allowedTools "Bash(ofa *)"`, which the
+maintainer had suggested as if it limited the session to `ofa`; it did not: 89 of its 91 shell commands were not a
+plain `ofa` command (`cd … && ofa …`, `grep`, `sed`, `python3` on the Odoo source), and the mode approved them,
+including a `sleep 300` before the cancellation retry, without the author seeing a prompt. Later example sessions are
+launched without that option. The plugin's guard hook did run on every command and refused the in-page `.click()`. The
+guard does not depend on the permission mode (see "The permission mode is not a layer" in `docs/guard.md`).
 
 ## Screenshots
 
