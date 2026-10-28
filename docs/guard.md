@@ -151,11 +151,11 @@ Claude Code's permission settings (`--allowedTools`, the permission mode, allow 
 calls run without asking the user. The guard does not rely on them: the hook runs on every matched tool call in
 every mode, and layer a, the marker and the server hardening hold whatever the session approves.
 
-Measured in the T26 example session: it ran in the `auto` permission mode, and 89 of its 91 shell commands were not
-a plain `ofa` command (`cd ... && ofa ...`, `grep`, `sed`, `python3` on the Odoo source, a `sleep`), so an
-allow rule like `Bash(ofa *)` matched almost none of them; the mode approved them without a prompt, while the hook
-still checked each one and refused an in-page `.click()`. Each example README states the permission mode its
-session ran in, when its transcript was still available to measure it.
+Measured from the T26 example session's transcript on 2026-10-28 (the transcript is not kept): it ran in the `auto`
+permission mode, and 89 of its 91 shell commands were not a plain `ofa` command (`cd ... && ofa ...`, `grep`, `sed`,
+`python3` on the Odoo source, a `sleep`), so an allow rule like `Bash(ofa *)` matched almost none of them; the mode
+approved them without a prompt, while the hook still checked each one and refused an in-page `.click()`. Each example
+README states the permission mode its session ran in, when its transcript was still available to measure it.
 
 ## Known gaps
 
