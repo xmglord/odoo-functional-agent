@@ -151,6 +151,7 @@ def _test_user_before_write(client, model, res_id, values):
     if model != USERS_MODEL:
         return None
     login = identities.login_of(client, res_id)
+    identities.check_lang(login, values)
     if not identities.is_test_login(login):
         return None
     for field in ("group_ids", "company_ids"):

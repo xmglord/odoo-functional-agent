@@ -13,6 +13,7 @@ for xmlid in $extra_groups:
 bot = env['res.users'].create({
     'name': 'OFA bot',
     'login': 'ofa_bot',
+    'lang': 'en_US',
     'group_ids': [(6, 0, groups.ids)],
     'company_ids': [(6, 0, admin.company_ids.ids)],
     'company_id': admin.company_id.id,
@@ -31,6 +32,7 @@ for login in $test_logins:
     user = env['res.users'].create({
         'name': 'OFA test user ' + login.rsplit('_', 1)[1],
         'login': login,
+        'lang': 'en_US',
         'group_ids': [(6, 0, [env.ref('base.group_user').id])],
         'company_ids': [(6, 0, [admin.company_id.id])],
         'company_id': admin.company_id.id,

@@ -17,6 +17,9 @@ USERS_MODEL = "res.users"
 GROUPS_MODEL = "res.groups"
 ADMIN_GROUPS = ("base.group_system", "base.group_erp_manager")
 BASE_USER_GROUP = "base.group_user"
+BOT_LOGIN = "ofa_bot"
+# Odoo translates error messages to the acting user's language; scenarios match them in English.
+LANG = "en_US"
 
 
 def key_path(db, login):
@@ -99,3 +102,9 @@ def describe(client, uid):
     names = {r["res_id"]: f"{r['module']}.{r['name']}" for r in data}
     return {"login": row["login"],
             "groups": sorted(names.get(g, f"{GROUPS_MODEL},{g}") for g in row["all_group_ids"])}
+
+
+def check_lang(login, values):
+    """The bot and the test users keep LANG: a write that would change it is refused."""
+    if (login == BOT_LOGIN or is_test_login(login)) and "lang" in values and values["lang"] != LANG:
+        raise GuardError("FIXED_LANG", f"{login} keeps lang {LANG}: expect_error texts in scenarios are English")

@@ -275,3 +275,77 @@ class RunTest(FakeCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExpectErrorTest(FakeCase):
+    """A negative step passes only on Odoo's own refusal with the declared class and text (T25)."""
+
+    def scenario(self, step):
+        data = {"format": "ofa.scenario/1", "id": "neg", "area": "accounting", "odoo_version": "20.0",
+                "edition": "community", "description": "x",
+                "steps": [{"id": "s010", "action": "write", "model": "account.tax", "target": 1, **step},
+                          {"id": "s020", "action": "assert", "model": "account.tax", "target": 1,
+                           "expect": {"fields": {"amount": {"eq": 15}}}}]}
+        return scenario.validate(data)
+
+    def run_write(self, response, expect_error=None, values=None):
+        self.fake.script("account.tax", "write", response)
+        self.fake.script("account.tax", "read", [{"id": 1, "amount": 15}])
+        spec = expect_error or {"class": "AccessError", "message_contains": "not allowed to modify 'Tax'"}
+        result, _, _ = scenario.run(self.open(), self.scenario({"values": values or {"amount": 10},
+                                                                "expect_error": spec}))
+        return result
+
+    def test_declared_refusal_passes_and_the_scenario_goes_on(self):
+        refused = Response(403, error_body("odoo.exceptions.AccessError", "You are not allowed to modify 'Tax'"))
+        result = self.run_write(refused)
+        self.assertEqual(result["status"], "pass", result)
+        self.assertEqual([s["status"] for s in result["steps"]], ["pass", "pass"])
+        self.assertIn("refused as expected: AccessError", result["steps"][0]["message"])
+
+    def test_call_that_succeeds_fails(self):
+        result = self.run_write(True)
+        self.assertEqual(result["status"], "fail")
+        self.assertIn("but the call succeeded", result["steps"][0]["message"])
+
+    def test_other_business_refusal_or_other_text_fails(self):
+        for name, msg in (("odoo.exceptions.UserError", "You are not allowed to modify 'Tax'"),
+                          ("odoo.exceptions.ValidationError", "You are not allowed to modify 'Tax'"),
+                          ("odoo.exceptions.AccessError", "Sorry, you cannot read Partner")):
+            with self.subTest(name=name, msg=msg):
+                result = self.run_write(Response(422, error_body(name, msg)))
+                self.assertEqual(result["status"], "fail", result)
+                self.assertIn("refused with", result["steps"][0]["message"])
+
+    def test_misspelled_field_is_a_scenario_error_not_a_pass(self):
+        # A ValueError mentioning the declared text still is not Odoo refusing the operation.
+        bad = Response(500, error_body("builtins.ValueError", "Invalid field 'amonut' on model 'account.tax'"))
+        result = self.run_write(bad, {"class": "AccessError", "message_contains": "amonut"}, {"amonut": 10})
+        self.assertEqual(result["status"], "error", result)
+        self.assertEqual(result["steps"][1]["status"], "skipped")
+
+    def test_unresolved_reference_is_a_scenario_error(self):
+        self.fake.script("ir.model.data", "search_read", [])
+        result = self.run_write(True, values={"amount": {"$ref": "nope.missing"}})
+        self.assertEqual(result["status"], "error", result)
+        self.assertIn("UNRESOLVED_REF", result["steps"][0]["message"])
+
+    def test_validation(self):
+        base = {"values": {"amount": 10}}
+        for spec, needle in (({"class": "Exception", "message_contains": "x"}, "must be one of"),
+                             ({"class": "AccessError", "message_contains": ""}, "non-empty"),
+                             ({"class": "AccessError"}, "missing message_contains")):
+            with self.subTest(needle=needle):
+                with self.assertRaises(ValidationError) as cm:
+                    self.scenario({**base, "expect_error": spec})
+                self.assertIn(needle, cm.exception.msg)
+        ok = {"class": "AccessError", "message_contains": "x"}
+        data = self.scenario({**base, "expect_error": ok})
+        data["steps"][0] = {"id": "s010", "action": "search", "model": "account.tax", "domain": [], "expect_error": ok}
+        with self.assertRaises(ValidationError):
+            scenario.validate(data)
+        data["steps"][0] = {"id": "s010", "action": "create", "model": "account.tax", "values": {}, "save_as": "t",
+                            "expect_error": ok}
+        with self.assertRaises(ValidationError) as cm:
+            scenario.validate(data)
+        self.assertIn("drop save_as", cm.exception.msg)

@@ -25,13 +25,16 @@ STEP_COMMON = ("id", "action", "model")
 STEP_OPTIONAL = ("company", "as")
 # action -> (required keys besides id/action/model, optional keys)
 ACTIONS = {
-    "create": (("values",), ("save_as",)),
-    "write": (("target", "values"), ()),
-    "call": (("target", "method"), ("params", "wizards")),
+    "create": (("values",), ("save_as", "expect_error")),
+    "write": (("target", "values"), ("expect_error",)),
+    "call": (("target", "method"), ("params", "wizards", "expect_error")),
     "search": (("domain",), ("limit", "save_as", "expect")),
-    "read": (("target", "fields"), ("save_as", "expect")),
+    "read": (("target", "fields"), ("save_as", "expect", "expect_error")),
     "assert": (("target", "expect"), ()),
 }
+# expect_error: the call must be refused with exactly this Odoo exception class and a message containing the text.
+ERROR_CLASSES = ("AccessError", "UserError", "ValidationError", "MissingError", "RedirectWarning")
+ODOO_EXCEPTIONS = "odoo.exceptions."
 EVIDENCE_KEYS = ("label", "model", "target", "fields")
 EVIDENCE_OPTIONAL = ("screenshot", "company")
 
@@ -137,6 +140,17 @@ def _check_users(users, where):
                 _check_ref(item, f"{at}.{key}[{i}]", "a record")
 
 
+def _check_expect_error(step, where):
+    spec = step["expect_error"]
+    _check_keys(spec, where, ("class", "message_contains"), ())
+    if spec["class"] not in ERROR_CLASSES:
+        raise _bad(f"{where}.class", f"must be one of {', '.join(ERROR_CLASSES)}")
+    _check_str(spec["message_contains"], f"{where}.message_contains")
+    clash = [k for k in ("expect", "save_as") if k in step]
+    if clash:
+        raise _bad(where, f"a refused call leaves nothing to check or save; drop {', '.join(clash)}")
+
+
 def _check_steps(steps, where, seen_ids, user_names=()):
     if not isinstance(steps, list) or not steps:
         raise _bad(where, "must be a non-empty list")
@@ -181,6 +195,8 @@ def _check_steps(steps, where, seen_ids, user_names=()):
                 raise _bad(f"{at}.fields", "must be a non-empty list of field names")
         if "save_as" in step:
             _check_str(step["save_as"], f"{at}.save_as", VAR_RE)
+        if "expect_error" in step:
+            _check_expect_error(step, f"{at}.expect_error")
         if "expect" in step:
             allowed = {"search": ("count",), "read": ("count", "fields"), "assert": ("count", "fields")}[action]
             _check_expect(step["expect"], f"{at}.expect", allowed)
@@ -280,6 +296,35 @@ def scrub(text):
 
 class StepFailed(Exception):
     """An expectation did not hold."""
+
+
+class ScenarioBroken(Exception):
+    """The scenario itself is wrong (a bad field, an unresolved reference): an error, never the expected refusal."""
+
+
+def _expect_refusal(spec, run):
+    """Run `run()`, which must be refused by Odoo with spec's class and text. Returns the pass message.
+
+    Only an Odoo business exception (odoo.exceptions.*) is a refusal. Anything else Odoo raises (a ValueError for a
+    field that does not exist, a 422 for bad parameters) and every ofa error is the scenario's fault.
+    """
+    want = ODOO_EXCEPTIONS + spec["class"]
+    text = spec["message_contains"]
+    try:
+        run()
+    except OdooError as e:
+        if not (e.name or "").startswith(ODOO_EXCEPTIONS):
+            raise ScenarioBroken(safe_message(e)) from None
+        if e.name == want and text in (e.message or ""):
+            return scrub(f"refused as expected: {spec['class']}: {e.message}")
+        raise StepFailed(f"refused with {e.name.removeprefix(ODOO_EXCEPTIONS)}: {e.message}; expected "
+                         f"{spec['class']} containing {json.dumps(text, ensure_ascii=False)}") from None
+    except (EnvError, GuardError):
+        raise
+    except OfaError as e:
+        raise ScenarioBroken(safe_message(e)) from None
+    raise StepFailed(f"expected {spec['class']} containing {json.dumps(text, ensure_ascii=False)}, "
+                     "but the call succeeded")
 
 
 def _ids(value, where):
@@ -492,11 +537,20 @@ def _run_steps(client, steps, vars, failure_status, company=None, users=None, as
             spec = step.get("company", company)
             user = users.actor(step.get("as", as_), vars) if users else None
             resolver = in_company(client, spec, vars)
-            records = _run_step(resolver, step, vars, in_company(client, spec, vars, user) if user else None)
+            actor = in_company(client, spec, vars, user) if user else None
+            if "expect_error" in step:
+                message = _expect_refusal(step["expect_error"], lambda: _run_step(resolver, step, vars, actor))
+                results.append({"id": step["id"], "status": PASS, "message": message,
+                                "records": _last_records(step, vars)})
+                continue
+            records = _run_step(resolver, step, vars, actor)
             results.append({"id": step["id"], "status": PASS, "message": "", "records": records})
         except StepFailed as e:
             status = failure_status
             results.append({"id": step["id"], "status": status, "message": scrub(str(e)), "records": _last_records(step, vars)})
+        except ScenarioBroken as e:
+            status = ERROR
+            results.append({"id": step["id"], "status": ERROR, "message": scrub(str(e)), "records": _last_records(step, vars)})
         except (EnvError, GuardError) as e:
             status = ERROR
             results.append({"id": step["id"], "status": ERROR, "message": safe_message(e), "records": _last_records(step, vars)})

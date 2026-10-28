@@ -100,7 +100,8 @@ These hold in every phase.
      `company_ids` as `$set` (see "Test identities" in `docs/plan_format.md`). Never an administrator group.
 4. Write `plans/<slug>/plan.md` from [plan_md_template.md](plan_md_template.md). Every op id must appear in it as
    the literal `[op_id]`, each in its own brackets. Its "Test plan" lists every need of the requirement with the
-   scenario you will write for it and what that scenario checks (fields read back, expected values). Mark a need
+   scenario you will write for it and what that scenario checks (fields read back, expected values; for a negative
+   test, the refusal's exception class and text). Mark a need
    no scenario will prove as **Not tested**, with the reason; do not leave a need out. List the role ops in its
    "Test identities" section.
 5. Run `ofa validate plans/<slug> --target <slug>` and fix the plan until it exits 0.
@@ -163,7 +164,10 @@ When apply does not exit 0:
    scenario only exercises the configuration: it must not change settings to make itself pass. A step that must
    run as a role says `"as": {"$ref": "__ofa__.<role key>"}`; leave the manager's or admin's steps as the bot. Use
    the scenario's own `users` only when the plan defines no role, and say in the report that such a test proves
-   the scenario's assumption, not the plan. When the plan works in
+   the scenario's assumption, not the plan. A negative test (a role must not be able to do something) is a step
+   with `expect_error`: the exact Odoo exception class and an English text copied from the 20.0 source or from a
+   run, never guessed, and never a test whose "expected result is fail". After the refused step, read back that
+   nothing changed when that applies (the tax amount is unchanged, no entry was created). When the plan works in
    a company other than the main one, set the scenario's top-level `company` to it: without it, reads and
    company-dependent values (a customer's `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s
    companies in a scenario.

@@ -152,6 +152,7 @@ class ProvisionTest(ProvisionCase):
         self.assertIn("ICP.set_str('ofa.demo_marker', 'm-1')", script)
         self.assertIn("orm_signaling_registry", script)
         self.assertIn("for login in ['ofa_user_1', 'ofa_user_2', 'ofa_user_3']:", script)
+        self.assertEqual(script.count("'lang': 'en_US',"), 2)  # the bot and every test user
         # A missing test-user key is a failed provision, not a target that cannot run `as` steps later.
         partial = subprocess.CompletedProcess([], 0, stdout="OFA_KEY=abc123\nOFA_USER_KEY=ofa_user_1=u1\n", stderr="")
         with mock.patch.object(subprocess, "run", return_value=partial):

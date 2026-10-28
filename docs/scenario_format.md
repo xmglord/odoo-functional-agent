@@ -110,11 +110,11 @@ and `model`, and may have `company` (see Company context).
 
 | Action | Required keys | Optional keys | JSON-2 call |
 |---|---|---|---|
-| `create` | `values` | `save_as` | `create` with `vals_list=[values]`; `save_as` stores the new id |
-| `write` | `target`, `values` | | `write` with `ids=[target...]`, `vals=values` |
-| `call` | `target`, `method` | `params`, `wizards` | the record method with `ids=[target...]` and `params` as named arguments, following wizards |
+| `create` | `values` | `save_as`, `expect_error` | `create` with `vals_list=[values]`; `save_as` stores the new id |
+| `write` | `target`, `values` | `expect_error` | `write` with `ids=[target...]`, `vals=values` |
+| `call` | `target`, `method` | `params`, `wizards`, `expect_error` | the record method with `ids=[target...]` and `params` as named arguments, following wizards |
 | `search` | `domain` | `limit`, `save_as`, `expect` (`count` only) | `search`; `save_as` stores the id list |
-| `read` | `target`, `fields` | `save_as`, `expect` | `read`; `save_as` stores the rows |
+| `read` | `target`, `fields` | `save_as`, `expect`, `expect_error` | `read`; `save_as` stores the rows |
 | `assert` | `target`, `expect` (with `fields`) | | `read` of the fields named in `expect.fields` |
 
 `target` must resolve to one record id or a non-empty list of ids.
@@ -122,6 +122,40 @@ and `model`, and may have `company` (see Company context).
 `call` follows wizard actions (a returned `ir.actions.act_window` with `target: "new"`). Two wizards are handled by
 default: `confirm.stock.sms` → `dont_send_sms` and `stock.backorder.confirmation` → `process`. `wizards` adds or
 overrides entries as `{wizard model: method}`. Any other wizard fails the step with `UNHANDLED_WIZARD`.
+
+### Expecting a refusal
+
+A negative test proves that Odoo refuses something: a billing clerk cannot post a manual entry, nobody can change a
+closed month. Give that step `expect_error`:
+
+```json
+{"id": "s010", "action": "write", "model": "account.tax", "as": {"$ref": "__ofa__.role_clerk"},
+ "target": {"$ref": "account.1_sale_tax_template"}, "values": {"amount": 10},
+ "expect_error": {"class": "AccessError", "message_contains": "You are not allowed to modify 'Tax'"}}
+```
+
+- `class` is one of `AccessError`, `UserError`, `ValidationError`, `MissingError`, `RedirectWarning`. It must be the
+  exact class Odoo raised (`odoo.exceptions.<class>`): `UserError` does not accept a `ValidationError`, although one
+  is a subclass of the other.
+- `message_contains` is required and must be part of Odoo's message. **Write it in English, copied from the Odoo
+  source or from a run's `test.json`, never guessed.** Odoo translates messages to the acting user's language;
+  `ofa_bot` and the test users are created with `lang` `en_US`, and `ofa apply` refuses to change it.
+- Only on `create`, `write`, `call` and `read`, and not together with `expect` or `save_as`: a refused call leaves
+  nothing to check or save.
+
+The step's status:
+
+| What happens | Status |
+|---|---|
+| Odoo refuses with that class and the text is in its message | `pass` (message `refused as expected: ...`) |
+| The call succeeds | `fail` |
+| Odoo refuses with another business exception, or the same class with another text | `fail`: something refused it, but not the rule the test is about |
+| Odoo raises something that is not a business exception (`builtins.ValueError` for a field that does not exist, a 422 for bad parameters) | `error`: the scenario is wrong |
+| An `ofa` error (a reference that does not resolve, a guard refusal, the network) | `error` |
+
+Each JSON-2 call is its own transaction, so a refused call leaves nothing behind. The scenario goes on after a
+passing `expect_error` step: read back that nothing changed (the tax still at 15, no entry created), because the
+refusal alone does not show that.
 
 ## Value references
 
@@ -164,8 +198,9 @@ and a read-back check is what a user would see on screen.
 
 Each step ends `pass`, `fail`, `error` or `skipped`; the scenario takes the first non-pass status.
 
-- `fail`: an expectation did not hold, Odoo refused a call (for example a `UserError`), or a reference did not
-  resolve. The configuration does not support the flow.
+- `fail`: an expectation did not hold, Odoo refused a call (for example a `UserError`) that had no `expect_error`,
+  or a reference did not resolve. The configuration does not support the flow. A step with `expect_error` follows
+  its own table (see Expecting a refusal).
 - `error`: the scenario could not be set up or the environment broke: a precondition failed, a required module is
   missing, the version or edition does not match, or the server is not answering.
 - The first failing step stops the scenario. The remaining steps are reported as `skipped`.

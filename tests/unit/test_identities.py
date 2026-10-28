@@ -186,3 +186,13 @@ class ApplyGuardTest(IdentityCase):
         self.assertEqual((status, ids), ("adopted", [BOSS]))
         self.assertEqual(self.writes[0], ([BOSS], {"group_ids": [[6, 0, [30]]]}))
         self.assertEqual(self.groups[BOSS], [30])
+
+    def test_role_op_cannot_change_the_language(self):
+        # expect_error texts are English; Odoo translates refusals to the acting user's language.
+        self.roles = {}
+        op = {**self.op({"$set": [{"$ref": "purchase.group_purchase_user"}]})}
+        op["values"] = {**op["values"], "lang": "es_MX"}
+        with self.assertRaises(GuardError) as cm:
+            executor._upsert_record(self.open(), op, None)
+        self.assertEqual(cm.exception.code, "FIXED_LANG")
+        self.assertEqual(self.writes, [])
