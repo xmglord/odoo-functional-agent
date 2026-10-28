@@ -1,0 +1,242 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_sat_xml_export",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 6: the SAT chart of accounts and trial balance XML of company 4 for October 2026, generated through the report's own options (get_options) and read back: RFC, period, the accounts listed, a grouping code. Maintainer version of the skill's scenario, written with the check step ofa gained after the session.",
+ "requires": {
+  "modules": [
+   "l10n_mx_reports"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "steps": [
+  {
+   "id": "s005",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "account_reports.trial_balance_report"
+   },
+   "method": "get_options",
+   "params": {
+    "previous_options": {
+     "date": {
+      "date_from": "2026-10-01",
+      "date_to": "2026-10-31",
+      "mode": "range",
+      "filter": "custom"
+     }
+    }
+   },
+   "save_as": "opts"
+  },
+  {
+   "id": "s010",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "account_reports.trial_balance_report"
+   },
+   "method": "dispatch_report_action",
+   "params": {
+    "options": {
+     "$var": "opts"
+    },
+    "action": "action_l10n_mx_generate_coa_sat_xml"
+   },
+   "save_as": "coa"
+  },
+  {
+   "id": "s011",
+   "action": "check",
+   "value": {
+    "$var": "coa"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "RFC"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "IVD920810GU2"
+     ]
+    }
+   },
+   "file": "chart_of_accounts"
+  },
+  {
+   "id": "s012",
+   "action": "check",
+   "value": {
+    "$var": "coa"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "Mes"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "10"
+     ]
+    }
+   }
+  },
+  {
+   "id": "s013",
+   "action": "check",
+   "value": {
+    "$var": "coa"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "Anio"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "2026"
+     ]
+    }
+   }
+  },
+  {
+   "id": "s014",
+   "action": "check",
+   "value": {
+    "$var": "coa"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": "cat:Ctas",
+    "ns": {
+     "cat": "http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas"
+    }
+   },
+   "expect": {
+    "count": 42
+   }
+  },
+  {
+   "id": "s015",
+   "action": "check",
+   "value": {
+    "$var": "coa"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": "cat:Ctas[@NumCta='102']",
+    "attribute": "CodAgrup",
+    "ns": {
+     "cat": "http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas"
+    }
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "102"
+     ]
+    }
+   }
+  },
+  {
+   "id": "s020",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "account_reports.trial_balance_report"
+   },
+   "method": "dispatch_report_action",
+   "params": {
+    "options": {
+     "$var": "opts"
+    },
+    "action": "action_l10n_mx_generate_sat_xml"
+   },
+   "save_as": "tb"
+  },
+  {
+   "id": "s021",
+   "action": "check",
+   "value": {
+    "$var": "tb"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "RFC"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "IVD920810GU2"
+     ]
+    }
+   },
+   "file": "trial_balance"
+  },
+  {
+   "id": "s022",
+   "action": "check",
+   "value": {
+    "$var": "tb"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "Mes"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "10"
+     ]
+    }
+   }
+  },
+  {
+   "id": "s023",
+   "action": "check",
+   "value": {
+    "$var": "tb"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": ".",
+    "attribute": "Anio"
+   },
+   "expect": {
+    "value": {
+     "eq": [
+      "2026"
+     ]
+    }
+   }
+  },
+  {
+   "id": "s024",
+   "action": "check",
+   "value": {
+    "$var": "tb"
+   },
+   "path": "file_content",
+   "xml": {
+    "xpath": "bce:Ctas",
+    "ns": {
+     "bce": "http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/BalanzaComprobacion"
+    }
+   },
+   "expect": {
+    "count": 42
+   }
+  }
+ ]
+}

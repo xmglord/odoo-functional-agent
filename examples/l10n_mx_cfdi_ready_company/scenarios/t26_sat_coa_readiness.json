@@ -1,0 +1,84 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_sat_coa_readiness",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 6 (prerequisites): in Casa Albar (company 4) every account has a SAT-valid code (l10n_mx_is_sat_invalid false, so its first 6 characters are the grouping code) and a debit or credit nature tag (149 active accounts after the plan archives the stray template account 171.16000).",
+ "requires": {
+  "modules": [
+   "l10n_mx_reports"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "steps": [
+  {
+   "id": "s010",
+   "action": "search",
+   "model": "account.account",
+   "domain": [
+    [
+     "company_ids",
+     "in",
+     [
+      {
+       "$ref": "base.demo_company_mx"
+      }
+     ]
+    ]
+   ],
+   "save_as": "accts",
+   "expect": {
+    "count": 149
+   }
+  },
+  {
+   "id": "s020",
+   "action": "assert",
+   "model": "account.account",
+   "target": {
+    "$var": "accts"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_is_sat_invalid": {
+      "eq": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s030",
+   "action": "search",
+   "model": "account.account",
+   "domain": [
+    [
+     "company_ids",
+     "in",
+     [
+      {
+       "$ref": "base.demo_company_mx"
+      }
+     ]
+    ],
+    [
+     "tag_ids",
+     "in",
+     [
+      {
+       "$ref": "l10n_mx.tag_debit_balance_account"
+      },
+      {
+       "$ref": "l10n_mx.tag_credit_balance_account"
+      }
+     ]
+    ]
+   ],
+   "expect": {
+    "count": 149
+   }
+  }
+ ]
+}

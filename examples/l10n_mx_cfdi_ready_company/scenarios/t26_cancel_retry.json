@@ -1,0 +1,32 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_cancel_retry",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 4, cause separation: the original invoice of run 20261028T164836Z_t26's t26_cancel_substitute (account.move id 165) had its automatic reason-01 cancellation refused by the Quadrum test PAC (document invoice_cancel_failed). Minutes later, with no configuration change, the same document is retried with l10n_mx_edi.document.action_retry. Pass: the original ends cancelled with reason 01 (does not distinguish too-soon-after-stamping from a transient test-service failure). Fail at s030: a second failure minutes after stamping rules out timing and points to the test service. Tied to this run's record id on purpose.",
+ "requires": {"modules": ["l10n_mx_edi"]},
+ "company": {"$ref": "base.demo_company_mx"},
+ "preconditions": [
+  {"id": "p010", "action": "search", "model": "l10n_mx_edi.document",
+   "domain": [["move_id", "=", 165], ["state", "=", "invoice_cancel_failed"], ["cancellation_reason", "=", "01"]],
+   "save_as": "failed_doc", "expect": {"count": 1}},
+  {"id": "p020", "action": "search", "model": "account.move",
+   "domain": [["l10n_mx_edi_cfdi_origin", "=like", "04|%"], ["state", "=", "posted"], ["l10n_mx_edi_cfdi_state", "=", "sent"], ["invoice_origin", "=", "OFA-T26-SUBST"], ["id", "=", 166]],
+   "expect": {"count": 1}}
+ ],
+ "steps": [
+  {"id": "s010", "action": "read", "model": "l10n_mx_edi.document", "target": {"$var": "failed_doc"}, "fields": ["state", "message", "datetime"]},
+  {"id": "s020", "action": "call", "model": "l10n_mx_edi.document", "target": {"$var": "failed_doc"}, "method": "action_retry"},
+  {"id": "s030", "action": "assert", "model": "account.move", "target": 165,
+   "expect": {"fields": {"l10n_mx_edi_cfdi_state": {"eq": "cancel"}, "l10n_mx_edi_invoice_cancellation_reason": {"eq": "01"}, "state": {"eq": "cancel"}}}},
+  {"id": "s040", "action": "search", "model": "l10n_mx_edi.document",
+   "domain": [["move_id", "=", 165], ["state", "=", "invoice_cancel"], ["cancellation_reason", "=", "01"]], "expect": {"count": 1}}
+ ],
+ "evidence": [
+  {"label": "retried_cancelled_invoice", "model": "account.move", "target": 165,
+   "fields": ["name", "state", "l10n_mx_edi_cfdi_state", "l10n_mx_edi_invoice_cancellation_reason", "l10n_mx_edi_cfdi_uuid", "l10n_mx_edi_cfdi_cancel_id"], "screenshot": true},
+  {"label": "cancel_documents", "model": "l10n_mx_edi.document", "target": {"$var": "failed_doc"},
+   "fields": ["state", "cancellation_reason", "message", "datetime"], "screenshot": false}
+ ]
+}

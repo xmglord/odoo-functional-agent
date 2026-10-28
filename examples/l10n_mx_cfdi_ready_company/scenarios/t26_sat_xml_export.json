@@ -1,0 +1,70 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_sat_xml_export",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 6 (files): attempt to generate the SAT chart of accounts XML and the trial balance XML for October 2026 through account.report.dispatch_report_action on the Trial Balance (public), with hand-built minimal options. ofa scenarios cannot capture a call's return value, so a pass proves only that generation runs without error, not the XML content. The XML content cannot be verified: an ofa call step discards the method's return value.",
+ "requires": {
+  "modules": [
+   "l10n_mx_reports"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "steps": [
+  {
+   "id": "s010",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "account_reports.trial_balance_report"
+   },
+   "method": "dispatch_report_action",
+   "params": {
+    "options": {
+     "report_id": {
+      "$ref": "account_reports.trial_balance_report"
+     },
+     "comparison": {
+      "filter": "no_comparison"
+     },
+     "date": {
+      "date_from": "2026-10-01",
+      "date_to": "2026-10-31",
+      "mode": "range",
+      "filter": "custom"
+     }
+    },
+    "action": "action_l10n_mx_generate_coa_sat_xml"
+   }
+  },
+  {
+   "id": "s020",
+   "action": "call",
+   "model": "account.report",
+   "target": {
+    "$ref": "account_reports.trial_balance_report"
+   },
+   "method": "dispatch_report_action",
+   "params": {
+    "options": {
+     "report_id": {
+      "$ref": "account_reports.trial_balance_report"
+     },
+     "comparison": {
+      "filter": "no_comparison"
+     },
+     "date": {
+      "date_from": "2026-10-01",
+      "date_to": "2026-10-31",
+      "mode": "range",
+      "filter": "custom"
+     }
+    },
+    "action": "action_l10n_mx_generate_sat_xml"
+   }
+  }
+ ]
+}

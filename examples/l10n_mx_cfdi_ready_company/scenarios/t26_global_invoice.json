@@ -1,0 +1,361 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_global_invoice",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Needs 1 (general public) and 2 (counter payment way): two anonymous counter sales of Casa Albar (company 4) to the plan's 'Ventas de mostrador' customer, paid in cash (01) and by debit card (28), are posted without individual stamping and grouped by the monthly global invoice wizard into one CFDI to XAXX010101000 PUBLICO EN GENERAL. Stamps with the Quadrum test PAC: needs network; demo CSD of company 4 expires 2027-05-18.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "preconditions": [
+  {
+   "id": "p010",
+   "action": "search",
+   "model": "certificate.certificate",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "base.demo_company_mx"
+     }
+    ],
+    [
+     "scope",
+     "=",
+     "cfdi_csd"
+    ],
+    [
+     "is_valid",
+     "=",
+     true
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "steps": [
+  {
+   "id": "s005",
+   "action": "create",
+   "model": "product.product",
+   "values": {
+    "name": "OFA hex bolt M10 box",
+    "type": "consu",
+    "list_price": 1000.0,
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "unspsc_code_id": {
+     "$ref": "product_unspsc.unspsc_code_31161500"
+    },
+    "taxes_id": {
+     "$set": [
+      {
+       "$ref": "account.4_tax12"
+      }
+     ]
+    }
+   },
+   "save_as": "product"
+  },
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "save_as": "inv_cash",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "__ofa__.albar_public_partner"
+    },
+    "invoice_date": "2026-10-28",
+    "invoice_payment_term_id": {
+     "$ref": "account.account_payment_term_immediate"
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_efectivo"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "s020",
+   "action": "create",
+   "model": "account.move",
+   "save_as": "inv_debit",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "__ofa__.albar_public_partner"
+    },
+    "invoice_date": "2026-10-28",
+    "invoice_payment_term_id": {
+     "$ref": "account.account_payment_term_immediate"
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_tarjeta_debito"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.move",
+   "target": [
+    {
+     "$var": "inv_cash"
+    },
+    {
+     "$var": "inv_debit"
+    }
+   ],
+   "method": "action_post"
+  },
+  {
+   "id": "s040",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_cash"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "l10n_mx_edi_cfdi_to_public": {
+      "eq": true
+     },
+     "l10n_mx_edi_cfdi_state": {
+      "eq": false
+     },
+     "l10n_mx_edi_payment_policy": {
+      "eq": "PUE"
+     }
+    }
+   }
+  },
+  {
+   "id": "s045",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_debit"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "l10n_mx_edi_cfdi_to_public": {
+      "eq": true
+     },
+     "l10n_mx_edi_cfdi_state": {
+      "eq": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s050",
+   "action": "call",
+   "model": "account.move",
+   "target": [
+    {
+     "$var": "inv_cash"
+    },
+    {
+     "$var": "inv_debit"
+    }
+   ],
+   "method": "l10n_mx_edi_action_create_global_invoice",
+   "wizards": {
+    "l10n_mx_edi.global_invoice.create": "action_create_global_invoice"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_cash"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "global_sent"
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_efectivo"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s065",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_debit"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "global_sent"
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_tarjeta_debito"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s070",
+   "action": "search",
+   "model": "l10n_mx_edi.document",
+   "domain": [
+    [
+     "invoice_ids",
+     "in",
+     [
+      {
+       "$var": "inv_cash"
+      }
+     ]
+    ],
+    [
+     "state",
+     "=",
+     "ginvoice_sent"
+    ]
+   ],
+   "save_as": "gdoc",
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s080",
+   "action": "assert",
+   "model": "l10n_mx_edi.document",
+   "target": {
+    "$var": "gdoc"
+   },
+   "expect": {
+    "fields": {
+     "attachment_uuid": {
+      "ne": false
+     },
+     "invoice_ids": {
+      "contains": [
+       {
+        "$var": "inv_cash"
+       },
+       {
+        "$var": "inv_debit"
+       }
+      ]
+     }
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "anonymous_cash_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_cash"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_total",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "anonymous_debit_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_debit"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_total",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid"
+   ],
+   "screenshot": false
+  },
+  {
+   "label": "global_invoice_document",
+   "model": "l10n_mx_edi.document",
+   "target": {
+    "$var": "gdoc"
+   },
+   "fields": [
+    "state",
+    "attachment_uuid",
+    "invoice_ids",
+    "datetime"
+   ],
+   "screenshot": false
+  }
+ ]
+}

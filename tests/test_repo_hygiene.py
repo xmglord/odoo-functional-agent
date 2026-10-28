@@ -19,6 +19,9 @@ RFC_ALLOWLIST = frozenset({
     "IVD920810GU2", "ZUÑ920208KL4",  # 20.0 MX demo companies 4 and 5, owners of the shipped demo CSDs
     "XIA190128J61", "ICV060329BY0",  # 20.0 l10n_mx_edi demo partners, accepted as receivers by the test PACs
     "XAXX010101000", "XEXX010101000",  # SAT generic RFCs (público en general, foreign receiver)
+    # Invented by the skill in the T26 example's scenarios; their check digit is invalid (python-stdnum
+    # stdnum.mx.rfc raises InvalidChecksum), so they cannot be anyone's real RFC.
+    "OFCX850101AB1", "OFTX850101AB1", "OIS850101AB1", "OMC850101AB1",
 })
 HOME_RE = re.compile(r"/(?:home|Users)/[^/\s\"']+/")
 PLAN_DIR = "docs/" + "plan/"

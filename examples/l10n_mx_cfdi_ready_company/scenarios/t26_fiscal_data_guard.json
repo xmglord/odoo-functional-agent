@@ -1,0 +1,477 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_fiscal_data_guard",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 1 (incomplete fiscal data found before stamping). Fictional customers of Casa Albar (company 4): a legal entity with RFC but no fiscal ZIP, an individual (13-char RFC) left at regime 601, and a complete customer on a PUE invoice without payment way. The plan's automation rule refuses each posting with a UserError naming the problem; the invoice stays draft and unstamped; after the data is fixed it posts. No stamping, no network.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi",
+   "base_automation"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "steps": [
+  {
+   "id": "s005",
+   "action": "create",
+   "model": "product.product",
+   "values": {
+    "name": "OFA hex bolt M10 box",
+    "type": "consu",
+    "list_price": 1000.0,
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "unspsc_code_id": {
+     "$ref": "product_unspsc.unspsc_code_31161500"
+    },
+    "taxes_id": {
+     "$set": [
+      {
+       "$ref": "account.4_tax12"
+      }
+     ]
+    }
+   },
+   "save_as": "product"
+  },
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "res.partner",
+   "values": {
+    "name": "OFA Industrias Sin CP",
+    "is_company": true,
+    "country_id": {
+     "$ref": "base.mx"
+    },
+    "vat": "OIS850101AB1",
+    "l10n_mx_edi_fiscal_regime": "601"
+   },
+   "save_as": "p_nozip"
+  },
+  {
+   "id": "s020",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$var": "p_nozip"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_transferencia"
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv_nozip"
+  },
+  {
+   "id": "s025",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_to_public": {
+      "eq": true
+     }
+    }
+   }
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "method": "action_post",
+   "expect_error": {
+    "class": "UserError",
+    "message_contains": "Incomplete CFDI data"
+   }
+  },
+  {
+   "id": "s031",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "method": "action_post",
+   "expect_error": {
+    "class": "UserError",
+    "message_contains": "fiscal ZIP code"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "draft"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "eq": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s050",
+   "action": "write",
+   "model": "res.partner",
+   "target": {
+    "$var": "p_nozip"
+   },
+   "values": {
+    "zip": "06000"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s070",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     },
+     "l10n_mx_edi_cfdi_to_public": {
+      "eq": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s110",
+   "action": "create",
+   "model": "res.partner",
+   "values": {
+    "name": "OFA Tecnico Independiente",
+    "is_company": false,
+    "country_id": {
+     "$ref": "base.mx"
+    },
+    "vat": "OFTX850101AB1",
+    "zip": "06000",
+    "l10n_mx_edi_fiscal_regime": "601"
+   },
+   "save_as": "p_ind"
+  },
+  {
+   "id": "s120",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$var": "p_ind"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_transferencia"
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv_ind"
+  },
+  {
+   "id": "s130",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_ind"
+   },
+   "method": "action_post",
+   "expect_error": {
+    "class": "UserError",
+    "message_contains": "tax regime 601 is for legal entities but the RFC is of an individual"
+   }
+  },
+  {
+   "id": "s140",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_ind"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "draft"
+     }
+    }
+   }
+  },
+  {
+   "id": "s150",
+   "action": "write",
+   "model": "res.partner",
+   "target": {
+    "$var": "p_ind"
+   },
+   "values": {
+    "l10n_mx_edi_fiscal_regime": "612"
+   }
+  },
+  {
+   "id": "s160",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_ind"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s170",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_ind"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     }
+    }
+   }
+  },
+  {
+   "id": "s210",
+   "action": "create",
+   "model": "res.partner",
+   "values": {
+    "name": "OFA Maquinados Completo",
+    "is_company": true,
+    "country_id": {
+     "$ref": "base.mx"
+    },
+    "vat": "OMC850101AB1",
+    "zip": "06000",
+    "l10n_mx_edi_fiscal_regime": "601"
+   },
+   "save_as": "p_ok"
+  },
+  {
+   "id": "s220",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$var": "p_ok"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv_nopw"
+  },
+  {
+   "id": "s225",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_payment_policy": {
+      "eq": "PUE"
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s230",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "method": "action_post",
+   "expect_error": {
+    "class": "UserError",
+    "message_contains": "payment way (required for a PUE invoice)"
+   }
+  },
+  {
+   "id": "s240",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "draft"
+     }
+    }
+   }
+  },
+  {
+   "id": "s250",
+   "action": "write",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "values": {
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_tarjeta_de_credito"
+    }
+   }
+  },
+  {
+   "id": "s260",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s270",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "expect": {
+    "fields": {
+     "state": {
+      "eq": "posted"
+     }
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "fixed_invoice_nozip",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nozip"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin"
+   ],
+   "screenshot": false
+  },
+  {
+   "label": "card_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_nopw"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin"
+   ],
+   "screenshot": false
+  }
+ ]
+}

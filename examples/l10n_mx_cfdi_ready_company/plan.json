@@ -1,0 +1,424 @@
+{
+  "format": "ofa.plan/1",
+  "title": "Casa Albar: CFDI 4.0 invoicing, payment complements, fee withholdings and SAT month-end files",
+  "odoo_version": "20.0",
+  "edition": "enterprise",
+  "areas": [
+    "l10n_mx",
+    "accounting"
+  ],
+  "operations": [
+    {
+      "id": "op_010_install_automation",
+      "type": "install_modules",
+      "modules": [
+        "base_automation"
+      ],
+      "depends_on": [],
+      "rationale": "Automation Rules host the pre-posting check that stops an invoice whose customer fiscal data is incomplete.",
+      "knowledge_refs": [],
+      "edition": "community"
+    },
+    {
+      "id": "op_020_install_mx_reports",
+      "type": "install_modules",
+      "modules": [
+        "l10n_mx_reports"
+      ],
+      "depends_on": [],
+      "rationale": "The SAT electronic accounting XML (chart of accounts and trial balance) is exported by l10n_mx_reports from the Trial Balance.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/INDEX.md"
+      ],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_030_bank_inbound_outstanding",
+      "type": "upsert_record",
+      "model": "account.payment.method.line",
+      "key": "albar_bank_inbound_manual",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "payment_account_id": {
+          "$ref": "account.4_account_journal_payment_debit_account_id"
+        }
+      },
+      "match": [
+        [
+          "journal_id",
+          "=",
+          {
+            "$ref": "account.4_bank"
+          }
+        ],
+        [
+          "payment_type",
+          "=",
+          "inbound"
+        ],
+        [
+          "code",
+          "=",
+          "manual"
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Customer payments by bank post an entry to Outstanding Receipts, without which a PPD payment has nothing to reconcile and no payment complement.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/payment_complements.md",
+        "knowledge/20.0/accounting/payments_and_reconciliation.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_040_cash_inbound_outstanding",
+      "type": "upsert_record",
+      "model": "account.payment.method.line",
+      "key": "albar_cash_inbound_manual",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "payment_account_id": {
+          "$ref": "account.4_account_journal_payment_debit_account_id"
+        }
+      },
+      "match": [
+        [
+          "journal_id",
+          "=",
+          {
+            "$ref": "account.4_cash"
+          }
+        ],
+        [
+          "payment_type",
+          "=",
+          "inbound"
+        ],
+        [
+          "code",
+          "=",
+          "manual"
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Cash payments from credit customers also need a journal entry so their payment complement can be stamped.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/payment_complements.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_050_bank_outbound_outstanding",
+      "type": "upsert_record",
+      "model": "account.payment.method.line",
+      "key": "albar_bank_outbound_manual",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "payment_account_id": {
+          "$ref": "account.4_account_journal_payment_credit_account_id"
+        }
+      },
+      "match": [
+        [
+          "journal_id",
+          "=",
+          {
+            "$ref": "account.4_bank"
+          }
+        ],
+        [
+          "payment_type",
+          "=",
+          "outbound"
+        ],
+        [
+          "code",
+          "=",
+          "manual"
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Paying a fees bill must post an entry so the reconciliation moves the withheld IVA from the transition account to the paid-withholding account.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/iva_and_withholdings.md",
+        "knowledge/20.0/accounting/payments_and_reconciliation.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_060_bank_payment_way",
+      "type": "upsert_record",
+      "model": "account.journal",
+      "key": "albar_bank_journal",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "l10n_mx_edi_payment_method_id": {
+          "$ref": "l10n_mx_edi.payment_method_transferencia"
+        }
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "account.4_bank"
+          }
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Money received in the bank journal is reported as payment way 03 (transfer) on payment complements unless the clerk picks another.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/cfdi_usage_payment_way_policy.md"
+      ],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_070_cash_payment_way",
+      "type": "upsert_record",
+      "model": "account.journal",
+      "key": "albar_cash_journal",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "l10n_mx_edi_payment_method_id": {
+          "$ref": "l10n_mx_edi.payment_method_efectivo"
+        }
+      },
+      "match": [
+        [
+          "id",
+          "=",
+          {
+            "$ref": "account.4_cash"
+          }
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Money received in the cash journal is reported as payment way 01 (cash).",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/cfdi_usage_payment_way_policy.md"
+      ],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_080_public_partner",
+      "type": "upsert_record",
+      "model": "res.partner",
+      "key": "albar_public_partner",
+      "values": {
+        "name": "Ventas de mostrador",
+        "country_id": {
+          "$ref": "base.mx"
+        },
+        "l10n_mx_edi_usage": "S01"
+      },
+      "match": [
+        [
+          "name",
+          "in",
+          [
+            "Ventas de mostrador",
+            "Publico en General"
+          ]
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "Anonymous counter sales are invoiced to one Mexican partner without RFC; their invoices are not stamped one by one but grouped in the monthly global invoice.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/fiscal_data_rfc_regime.md"
+      ],
+      "edition": "enterprise"
+    },
+    {
+      "id": "op_090_fees_product",
+      "type": "upsert_record",
+      "model": "product.template",
+      "key": "albar_fees_product",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "name": "Professional fees (honorarios)",
+        "type": "service",
+        "sale_ok": false,
+        "purchase_ok": true,
+        "company_id": {
+          "$ref": "base.demo_company_mx"
+        },
+        "unspsc_code_id": {
+          "$ref": "product_unspsc.unspsc_code_80111600"
+        },
+        "taxes_id": {
+          "$set": []
+        },
+        "supplier_taxes_id": {
+          "$set": [
+            {
+              "$ref": "account.4_tax14"
+            },
+            {
+              "$ref": "account.4_tax8"
+            },
+            {
+              "$ref": "account.4_tax5"
+            }
+          ]
+        }
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Professional fees (honorarios)"
+        ],
+        [
+          "company_id",
+          "=",
+          {
+            "$ref": "base.demo_company_mx"
+          }
+        ]
+      ],
+      "depends_on": [],
+      "rationale": "A fees product carries IVA 16%, the 10.67% IVA withholding and the 10% ISR withholding, so every fees bill line gets the three taxes without the clerk adding them.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/iva_and_withholdings.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_100_cfdi_guard_rule",
+      "type": "upsert_record",
+      "model": "base.automation",
+      "key": "albar_cfdi_guard_rule",
+      "values": {
+        "name": "MX CFDI: block posting with incomplete customer fiscal data",
+        "model_id": {
+          "$search": {
+            "model": "ir.model",
+            "domain": [
+              [
+                "model",
+                "=",
+                "account.move"
+              ]
+            ]
+          }
+        },
+        "trigger": "on_create_or_write",
+        "trigger_field_ids": {
+          "$set": [
+            {
+              "$ref": "account.field_account_move__state"
+            }
+          ]
+        },
+        "filter_pre_domain": "[('state', '!=', 'posted')]",
+        "filter_domain": "[('state', '=', 'posted'), ('move_type', 'in', ['out_invoice', 'out_refund']), ('l10n_mx_edi_is_cfdi_needed', '=', True)]"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "MX CFDI: block posting with incomplete customer fiscal data"
+        ]
+      ],
+      "depends_on": [
+        "op_010_install_automation"
+      ],
+      "rationale": "Runs when a Mexican customer invoice or credit note moves to posted, before anyone can stamp it.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/fiscal_data_rfc_regime.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_110_cfdi_guard_action",
+      "type": "upsert_record",
+      "model": "ir.actions.server",
+      "key": "albar_cfdi_guard_action",
+      "values": {
+        "name": "MX CFDI: check customer fiscal data and payment way",
+        "model_id": {
+          "$search": {
+            "model": "ir.model",
+            "domain": [
+              [
+                "model",
+                "=",
+                "account.move"
+              ]
+            ]
+          }
+        },
+        "usage": "base_automation",
+        "base_automation_id": {
+          "$ref": "__ofa__.albar_cfdi_guard_rule"
+        },
+        "state": "code",
+        "code": "moral_only = ('601', '603', '620', '622', '623', '624')\nindividual_only = ('605', '606', '607', '608', '611', '612', '614', '615', '616', '621', '625')\nfor move in records:\n    partner = move.commercial_partner_id\n    vat = (partner.vat or '').strip().upper()\n    problems = []\n    if vat and vat not in ('XAXX010101000', 'XEXX010101000'):\n        if not partner.country_id:\n            problems.append('country')\n        elif partner.country_code == 'MX':\n            regime = partner.l10n_mx_edi_fiscal_regime\n            if not partner.zip:\n                problems.append('fiscal ZIP code')\n            if not regime:\n                problems.append('tax regime')\n            elif len(vat) == 13 and regime in moral_only:\n                problems.append('tax regime %s is for legal entities but the RFC is of an individual' % regime)\n            elif len(vat) == 12 and regime in individual_only:\n                problems.append('tax regime %s is for individuals but the RFC is of a legal entity' % regime)\n    if move.move_type == 'out_invoice' and move.l10n_mx_edi_payment_policy == 'PUE' and not move.l10n_mx_edi_payment_method_id:\n        problems.append('payment way (required for a PUE invoice)')\n    if problems:\n        raise UserError('Incomplete CFDI data on %s for %s: %s. Fix the customer or the invoice before posting.' % (move.display_name, partner.display_name, ', '.join(problems)))\n"
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "MX CFDI: check customer fiscal data and payment way"
+        ]
+      ],
+      "depends_on": [
+        "op_100_cfdi_guard_rule"
+      ],
+      "rationale": "The rule's action refuses posting when a customer with RFC lacks country, fiscal ZIP or a regime that fits the RFC, or a PUE invoice has no payment way.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/fiscal_data_rfc_regime.md",
+        "knowledge/20.0/l10n_mx/cfdi_usage_payment_way_policy.md"
+      ],
+      "edition": "community"
+    },
+    {
+      "id": "op_120_archive_stray_account",
+      "type": "upsert_record",
+      "model": "account.account",
+      "key": "albar_stray_account_17116",
+      "company": {
+        "$ref": "base.demo_company_mx"
+      },
+      "values": {
+        "active": false
+      },
+      "match": [
+        [
+          "name",
+          "=",
+          "Accumulated depreciation of machinery and equipment for power generation from renewable sources or efficient co-generation systems"
+        ],
+        [
+          "company_ids",
+          "in",
+          [
+            {
+              "$ref": "base.demo_company_mx"
+            }
+          ]
+        ]
+      ],
+      "depends_on": [
+        "op_020_install_mx_reports"
+      ],
+      "rationale": "Archive the stray account 171.16000 the mx chart template creates from a subgroup row; its code breaks the SAT pattern and it has no entries.",
+      "knowledge_refs": [
+        "knowledge/20.0/l10n_mx/mx_chart_auto_load.md"
+      ],
+      "edition": "community"
+    }
+  ]
+}

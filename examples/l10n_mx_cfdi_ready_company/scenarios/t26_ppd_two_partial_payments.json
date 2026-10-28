@@ -1,0 +1,547 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_ppd_two_partial_payments",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 2 (credit customers): a customer set up for 30-day credit (30-day term, PPD on the partner) gets a PPD invoice of 11,600.00 stamped with FormaPago 99; a partial payment of 5,000.00 in the bank (payment way 03 from the journal) and the remaining 6,600.00 in cash (payment way 01 from the journal) are each reconciled and each gets its own stamped payment complement via Update Payments; residual goes 11,600 -> 6,600 -> 0. Stamps with the Quadrum test PAC: needs network; demo CSD of company 4 expires 2027-05-18.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "preconditions": [
+  {
+   "id": "p010",
+   "action": "search",
+   "model": "certificate.certificate",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "base.demo_company_mx"
+     }
+    ],
+    [
+     "scope",
+     "=",
+     "cfdi_csd"
+    ],
+    [
+     "is_valid",
+     "=",
+     true
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "steps": [
+  {
+   "id": "s005",
+   "action": "create",
+   "model": "product.product",
+   "values": {
+    "name": "OFA hex bolt M10 box",
+    "type": "consu",
+    "list_price": 1000.0,
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "unspsc_code_id": {
+     "$ref": "product_unspsc.unspsc_code_31161500"
+    },
+    "taxes_id": {
+     "$set": [
+      {
+       "$ref": "account.4_tax12"
+      }
+     ]
+    }
+   },
+   "save_as": "product"
+  },
+  {
+   "id": "s007",
+   "action": "write",
+   "model": "res.partner",
+   "target": {
+    "$ref": "l10n_mx_edi.demo_partner_quadrum_2"
+   },
+   "values": {
+    "property_payment_term_id": {
+     "$ref": "account.account_payment_term_30days"
+    },
+    "l10n_mx_edi_payment_policy": "PPD"
+   }
+  },
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_2"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 10000.0
+      }
+     ]
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv"
+  },
+  {
+   "id": "s020",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "amount_total": {
+      "eq": 11600.0
+     },
+     "l10n_mx_edi_payment_policy": {
+      "eq": "PPD"
+     },
+     "invoice_payment_term_id": {
+      "eq": {
+       "$ref": "account.account_payment_term_30days"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s040",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "action_send_and_print",
+   "wizards": {
+    "account.move.send.wizard": "action_send_and_print"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     },
+     "payment_state": {
+      "eq": "not_paid"
+     }
+    }
+   }
+  },
+  {
+   "id": "s110",
+   "action": "create",
+   "model": "account.payment",
+   "values": {
+    "payment_type": "inbound",
+    "partner_type": "customer",
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_2"
+    },
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_bank"
+    },
+    "payment_method_line_id": {
+     "$ref": "__ofa__.albar_bank_inbound_manual"
+    },
+    "amount": 5000.0
+   },
+   "save_as": "pay1"
+  },
+  {
+   "id": "s120",
+   "action": "call",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay1"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s125",
+   "action": "assert",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay1"
+   },
+   "expect": {
+    "fields": {
+     "move_id": {
+      "ne": false
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_transferencia"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s130",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "js_assign_outstanding_line",
+   "params": {
+    "line_id": {
+     "$search": {
+      "model": "account.move.line",
+      "domain": [
+       [
+        "payment_id",
+        "=",
+        {
+         "$var": "pay1"
+        }
+       ],
+       [
+        "account_type",
+        "=",
+        "asset_receivable"
+       ]
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "s140",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "payment_state": {
+      "eq": "partial"
+     },
+     "amount_residual": {
+      "eq": 6600.0
+     }
+    }
+   }
+  },
+  {
+   "id": "s150",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "l10n_mx_edi_cfdi_invoice_try_update_payments"
+  },
+  {
+   "id": "s160",
+   "action": "assert",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay1"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s210",
+   "action": "create",
+   "model": "account.payment",
+   "values": {
+    "payment_type": "inbound",
+    "partner_type": "customer",
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_2"
+    },
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_cash"
+    },
+    "payment_method_line_id": {
+     "$ref": "__ofa__.albar_cash_inbound_manual"
+    },
+    "amount": 6600.0
+   },
+   "save_as": "pay2"
+  },
+  {
+   "id": "s220",
+   "action": "call",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay2"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s225",
+   "action": "assert",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay2"
+   },
+   "expect": {
+    "fields": {
+     "move_id": {
+      "ne": false
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_efectivo"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s230",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "js_assign_outstanding_line",
+   "params": {
+    "line_id": {
+     "$search": {
+      "model": "account.move.line",
+      "domain": [
+       [
+        "payment_id",
+        "=",
+        {
+         "$var": "pay2"
+        }
+       ],
+       [
+        "account_type",
+        "=",
+        "asset_receivable"
+       ]
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "s240",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "payment_state": {
+      "in": [
+       "paid",
+       "in_payment"
+      ]
+     },
+     "amount_residual": {
+      "eq": 0.0
+     }
+    }
+   }
+  },
+  {
+   "id": "s250",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "l10n_mx_edi_cfdi_invoice_try_update_payments"
+  },
+  {
+   "id": "s260",
+   "action": "assert",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay2"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s270",
+   "action": "search",
+   "model": "l10n_mx_edi.document",
+   "domain": [
+    [
+     "invoice_ids",
+     "in",
+     [
+      {
+       "$var": "inv"
+      }
+     ]
+    ],
+    [
+     "state",
+     "=",
+     "payment_sent"
+    ]
+   ],
+   "save_as": "pdocs",
+   "expect": {
+    "count": 2
+   }
+  },
+  {
+   "id": "s280",
+   "action": "assert",
+   "model": "l10n_mx_edi.document",
+   "target": {
+    "$var": "pdocs"
+   },
+   "expect": {
+    "fields": {
+     "attachment_uuid": {
+      "ne": false
+     }
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "ppd_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin",
+    "payment_state",
+    "amount_residual"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "complement_1",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay1"
+   },
+   "fields": [
+    "name",
+    "amount",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "complement_2",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay2"
+   },
+   "fields": [
+    "name",
+    "amount",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid"
+   ],
+   "screenshot": false
+  },
+  {
+   "label": "complement_docs",
+   "model": "l10n_mx_edi.document",
+   "target": {
+    "$var": "pdocs"
+   },
+   "fields": [
+    "state",
+    "attachment_uuid",
+    "move_id"
+   ],
+   "screenshot": false
+  }
+ ]
+}

@@ -1,0 +1,336 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_cancel_substitute",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 4: a stamped invoice with wrong data is replaced: Request Cancel with reason 01 creates the replacement (CFDI origin 04|<UUID>), which is posted and stamped; stamping the replacement makes Odoo cancel the original with reason 01 by itself. The original stays in the database as cancelled with its reason. Stamps with the Quadrum test PAC: needs network; demo CSD of company 4 expires 2027-05-18.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "preconditions": [
+  {
+   "id": "p010",
+   "action": "search",
+   "model": "certificate.certificate",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "base.demo_company_mx"
+     }
+    ],
+    [
+     "scope",
+     "=",
+     "cfdi_csd"
+    ],
+    [
+     "is_valid",
+     "=",
+     true
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "steps": [
+  {
+   "id": "s005",
+   "action": "create",
+   "model": "product.product",
+   "values": {
+    "name": "OFA hex bolt M10 box",
+    "type": "consu",
+    "list_price": 1000.0,
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "unspsc_code_id": {
+     "$ref": "product_unspsc.unspsc_code_31161500"
+    },
+    "taxes_id": {
+     "$set": [
+      {
+       "$ref": "account.4_tax12"
+      }
+     ]
+    }
+   },
+   "save_as": "product"
+  },
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_1"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_transferencia"
+    },
+    "invoice_payment_term_id": {
+     "$ref": "account.account_payment_term_immediate"
+    },
+    "invoice_origin": "OFA-T26-SUBST",
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv"
+  },
+  {
+   "id": "s020",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "action_send_and_print",
+   "wizards": {
+    "account.move.send.wizard": "action_send_and_print"
+   }
+  },
+  {
+   "id": "s040",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     }
+    }
+   }
+  },
+  {
+   "id": "s050",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "method": "button_request_cancel",
+   "wizards": {
+    "l10n_mx_edi.invoice.cancel": "action_create_replacement_invoice"
+   }
+  },
+  {
+   "id": "s060",
+   "action": "search",
+   "model": "account.move",
+   "domain": [
+    [
+     "invoice_origin",
+     "=",
+     "OFA-T26-SUBST"
+    ],
+    [
+     "state",
+     "=",
+     "draft"
+    ],
+    [
+     "move_type",
+     "=",
+     "out_invoice"
+    ]
+   ],
+   "save_as": "repl",
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s070",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "repl"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_origin": {
+      "contains": "04|"
+     }
+    }
+   }
+  },
+  {
+   "id": "s080",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "repl"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s090",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "repl"
+   },
+   "method": "action_send_and_print",
+   "wizards": {
+    "account.move.send.wizard": "action_send_and_print"
+   }
+  },
+  {
+   "id": "s100",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "repl"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     }
+    }
+   }
+  },
+  {
+   "id": "s120",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "cancel"
+     },
+     "l10n_mx_edi_invoice_cancellation_reason": {
+      "eq": "01"
+     },
+     "state": {
+      "eq": "cancel"
+     },
+     "name": {
+      "ne": "/"
+     }
+    }
+   }
+  },
+  {
+   "id": "s130",
+   "action": "search",
+   "model": "l10n_mx_edi.document",
+   "domain": [
+    [
+     "move_id",
+     "=",
+     {
+      "$var": "inv"
+     }
+    ],
+    [
+     "state",
+     "=",
+     "invoice_cancel"
+    ],
+    [
+     "cancellation_reason",
+     "=",
+     "01"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "cancelled_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin",
+    "l10n_mx_edi_invoice_cancellation_reason"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "replacement_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "repl"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin"
+   ],
+   "screenshot": true
+  }
+ ]
+}

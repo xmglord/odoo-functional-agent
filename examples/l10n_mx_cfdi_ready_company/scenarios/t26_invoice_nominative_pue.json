@@ -1,0 +1,341 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_invoice_nominative_pue",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Needs 1 and 2 (counter sale): PUE invoices of Casa Albar (company 4) to a customer with RFC, regime 601, fiscal ZIP and CFDI use G01, with 16% IVA, stamped as CFDI 4.0; one paid by transfer (03), one by credit card (04). Stamps with the Quadrum test PAC: needs network; demo CSD of company 4 expires 2027-05-18.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "preconditions": [
+  {
+   "id": "p010",
+   "action": "search",
+   "model": "certificate.certificate",
+   "domain": [
+    [
+     "company_id",
+     "=",
+     {
+      "$ref": "base.demo_company_mx"
+     }
+    ],
+    [
+     "scope",
+     "=",
+     "cfdi_csd"
+    ],
+    [
+     "is_valid",
+     "=",
+     true
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "steps": [
+  {
+   "id": "s005",
+   "action": "create",
+   "model": "product.product",
+   "values": {
+    "name": "OFA hex bolt M10 box",
+    "type": "consu",
+    "list_price": 1000.0,
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "unspsc_code_id": {
+     "$ref": "product_unspsc.unspsc_code_31161500"
+    },
+    "taxes_id": {
+     "$set": [
+      {
+       "$ref": "account.4_tax12"
+      }
+     ]
+    }
+   },
+   "save_as": "product"
+  },
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_1"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_transferencia"
+    },
+    "l10n_mx_edi_usage": "G01",
+    "invoice_payment_term_id": {
+     "$ref": "account.account_payment_term_immediate"
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv_tr"
+  },
+  {
+   "id": "s020",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_tr"
+   },
+   "expect": {
+    "fields": {
+     "amount_untaxed": {
+      "eq": 1000.0
+     },
+     "amount_tax": {
+      "eq": 160.0
+     },
+     "amount_total": {
+      "eq": 1160.0
+     },
+     "l10n_mx_edi_payment_policy": {
+      "eq": "PUE"
+     },
+     "l10n_mx_edi_usage": {
+      "eq": "G01"
+     },
+     "l10n_mx_edi_cfdi_to_public": {
+      "eq": false
+     },
+     "l10n_mx_edi_is_cfdi_needed": {
+      "eq": true
+     }
+    }
+   }
+  },
+  {
+   "id": "s030",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_tr"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s040",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_tr"
+   },
+   "method": "action_send_and_print",
+   "wizards": {
+    "account.move.send.wizard": "action_send_and_print"
+   }
+  },
+  {
+   "id": "s050",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_tr"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_transferencia"
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "s060",
+   "action": "search",
+   "model": "l10n_mx_edi.document",
+   "domain": [
+    [
+     "invoice_ids",
+     "in",
+     [
+      {
+       "$var": "inv_tr"
+      }
+     ]
+    ],
+    [
+     "state",
+     "=",
+     "invoice_sent"
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s110",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "out_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_sale"
+    },
+    "partner_id": {
+     "$ref": "l10n_mx_edi.demo_partner_quadrum_1"
+    },
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$var": "product"
+       },
+       "quantity": 1,
+       "price_unit": 1000.0
+      }
+     ]
+    },
+    "l10n_mx_edi_payment_method_id": {
+     "$ref": "l10n_mx_edi.payment_method_tarjeta_de_credito"
+    },
+    "l10n_mx_edi_usage": "G01",
+    "invoice_payment_term_id": {
+     "$ref": "account.account_payment_term_immediate"
+    },
+    "invoice_date": "2026-10-28"
+   },
+   "save_as": "inv_card"
+  },
+  {
+   "id": "s120",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_card"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s130",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_card"
+   },
+   "method": "action_send_and_print",
+   "wizards": {
+    "account.move.send.wizard": "action_send_and_print"
+   }
+  },
+  {
+   "id": "s140",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_card"
+   },
+   "expect": {
+    "fields": {
+     "l10n_mx_edi_cfdi_state": {
+      "eq": "sent"
+     },
+     "l10n_mx_edi_cfdi_uuid": {
+      "ne": false
+     },
+     "l10n_mx_edi_payment_policy": {
+      "eq": "PUE"
+     },
+     "l10n_mx_edi_payment_method_id": {
+      "eq": {
+       "$ref": "l10n_mx_edi.payment_method_tarjeta_de_credito"
+      }
+     }
+    }
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "pue_transfer_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_tr"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "pue_card_invoice",
+   "model": "account.move",
+   "target": {
+    "$var": "inv_card"
+   },
+   "fields": [
+    "name",
+    "state",
+    "partner_id",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "l10n_mx_edi_usage",
+    "l10n_mx_edi_payment_policy",
+    "l10n_mx_edi_payment_method_id",
+    "l10n_mx_edi_cfdi_to_public",
+    "l10n_mx_edi_cfdi_state",
+    "l10n_mx_edi_cfdi_uuid",
+    "l10n_mx_edi_cfdi_origin"
+   ],
+   "screenshot": false
+  }
+ ]
+}

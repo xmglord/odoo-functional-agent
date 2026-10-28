@@ -1,0 +1,345 @@
+{
+ "format": "ofa.scenario/1",
+ "id": "t26_fees_bill_withholdings",
+ "area": "l10n_mx",
+ "odoo_version": "20.0",
+ "edition": "enterprise",
+ "description": "Need 5: a fees bill of 10,000.00 from a fictional individual using the plan's fees product gets IVA 16%, 10.67% IVA withheld and 10% ISR withheld from the product: total 9,533.33; ISR withheld posts to account 216.04 (professional services) and IVA withheld to the 216.10 transition account; paying the bill from the bank moves the 1,066.67 to 216.10.20 (VAT withholding effectively paid) through the cash-basis entry. No stamping.",
+ "requires": {
+  "modules": [
+   "l10n_mx_edi"
+  ]
+ },
+ "company": {
+  "$ref": "base.demo_company_mx"
+ },
+ "steps": [
+  {
+   "id": "s010",
+   "action": "create",
+   "model": "res.partner",
+   "values": {
+    "name": "OFA Consultora Independiente",
+    "is_company": false,
+    "country_id": {
+     "$ref": "base.mx"
+    },
+    "vat": "OFCX850101AB1",
+    "l10n_mx_edi_fiscal_regime": "612",
+    "zip": "06000"
+   },
+   "save_as": "vendor"
+  },
+  {
+   "id": "s020",
+   "action": "create",
+   "model": "account.move",
+   "values": {
+    "move_type": "in_invoice",
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_purchase"
+    },
+    "partner_id": {
+     "$var": "vendor"
+    },
+    "invoice_date": "2026-10-28",
+    "invoice_line_ids": {
+     "$create": [
+      {
+       "product_id": {
+        "$search": {
+         "model": "product.product",
+         "domain": [
+          [
+           "product_tmpl_id",
+           "=",
+           {
+            "$ref": "__ofa__.albar_fees_product"
+           }
+          ]
+         ]
+        }
+       },
+       "quantity": 1,
+       "price_unit": 10000.0
+      }
+     ]
+    }
+   },
+   "save_as": "bill"
+  },
+  {
+   "id": "s030",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "expect": {
+    "fields": {
+     "amount_untaxed": {
+      "eq": 10000.0
+     },
+     "amount_tax": {
+      "eq": -466.67
+     },
+     "amount_total": {
+      "eq": 9533.33
+     }
+    }
+   }
+  },
+  {
+   "id": "s040",
+   "action": "search",
+   "model": "account.move.line",
+   "domain": [
+    [
+     "move_id",
+     "=",
+     {
+      "$var": "bill"
+     }
+    ],
+    [
+     "tax_line_id",
+     "=",
+     {
+      "$ref": "account.4_tax5"
+     }
+    ],
+    [
+     "account_id",
+     "=",
+     {
+      "$ref": "account.4_cuenta216_04"
+     }
+    ],
+    [
+     "balance",
+     "=",
+     -1000.0
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s050",
+   "action": "search",
+   "model": "account.move.line",
+   "domain": [
+    [
+     "move_id",
+     "=",
+     {
+      "$var": "bill"
+     }
+    ],
+    [
+     "tax_line_id",
+     "=",
+     {
+      "$ref": "account.4_tax8"
+     }
+    ],
+    [
+     "account_id",
+     "=",
+     {
+      "$ref": "account.4_cuenta216_10"
+     }
+    ],
+    [
+     "balance",
+     "=",
+     -1066.67
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s060",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s070",
+   "action": "create",
+   "model": "account.payment",
+   "values": {
+    "payment_type": "outbound",
+    "partner_type": "supplier",
+    "partner_id": {
+     "$var": "vendor"
+    },
+    "company_id": {
+     "$ref": "base.demo_company_mx"
+    },
+    "journal_id": {
+     "$ref": "account.4_bank"
+    },
+    "payment_method_line_id": {
+     "$ref": "__ofa__.albar_bank_outbound_manual"
+    },
+    "amount": 9533.33
+   },
+   "save_as": "pay"
+  },
+  {
+   "id": "s080",
+   "action": "call",
+   "model": "account.payment",
+   "target": {
+    "$var": "pay"
+   },
+   "method": "action_post"
+  },
+  {
+   "id": "s090",
+   "action": "call",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "method": "js_assign_outstanding_line",
+   "params": {
+    "line_id": {
+     "$search": {
+      "model": "account.move.line",
+      "domain": [
+       [
+        "payment_id",
+        "=",
+        {
+         "$var": "pay"
+        }
+       ],
+       [
+        "account_type",
+        "=",
+        "liability_payable"
+       ]
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "s100",
+   "action": "assert",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "expect": {
+    "fields": {
+     "amount_residual": {
+      "eq": 0.0
+     }
+    }
+   }
+  },
+  {
+   "id": "s110",
+   "action": "search",
+   "model": "account.move.line",
+   "domain": [
+    [
+     "move_id.tax_cash_basis_origin_move_id",
+     "=",
+     {
+      "$var": "bill"
+     }
+    ],
+    [
+     "account_id",
+     "=",
+     {
+      "$ref": "account.4_cuenta216_10_20"
+     }
+    ],
+    [
+     "balance",
+     "=",
+     -1066.67
+    ]
+   ],
+   "save_as": "caba_line",
+   "expect": {
+    "count": 1
+   }
+  },
+  {
+   "id": "s120",
+   "action": "search",
+   "model": "account.move.line",
+   "domain": [
+    [
+     "move_id.tax_cash_basis_origin_move_id",
+     "=",
+     {
+      "$var": "bill"
+     }
+    ],
+    [
+     "account_id",
+     "=",
+     {
+      "$ref": "account.4_cuenta216_10"
+     }
+    ],
+    [
+     "balance",
+     "=",
+     1066.67
+    ]
+   ],
+   "expect": {
+    "count": 1
+   }
+  }
+ ],
+ "evidence": [
+  {
+   "label": "fees_bill",
+   "model": "account.move",
+   "target": {
+    "$var": "bill"
+   },
+   "fields": [
+    "name",
+    "state",
+    "amount_untaxed",
+    "amount_tax",
+    "amount_total",
+    "amount_residual",
+    "payment_state"
+   ],
+   "screenshot": true
+  },
+  {
+   "label": "withheld_iva_paid_line",
+   "model": "account.move.line",
+   "target": {
+    "$var": "caba_line"
+   },
+   "fields": [
+    "move_id",
+    "account_id",
+    "balance"
+   ],
+   "screenshot": false
+  }
+ ]
+}
