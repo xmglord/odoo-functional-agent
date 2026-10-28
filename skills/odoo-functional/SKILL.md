@@ -166,7 +166,11 @@ When apply does not exit 0:
    the scenario's own `users` only when the plan defines no role, and say in the report that such a test proves
    the scenario's assumption, not the plan. A negative test (a role must not be able to do something) is a step
    with `expect_error`: the exact Odoo exception class and an English text copied from the 20.0 source or from a
-   run, never guessed, and never a test whose "expected result is fail". After the refused step, read back that
+   run, never guessed, and never a test whose "expected result is fail". When the source message is a template
+   (the operation, model or record is filled in at run time, as in access errors), do not fill it in yourself:
+   which check refuses first decides the words (a user who cannot read a record is refused with the "read" text
+   even when the step writes). Take the text from a run (the step once without `expect_error`, then the message
+   in `test.json`), or keep only the fixed part of the template. After the refused step, read back that
    nothing changed when that applies (the tax amount is unchanged, no entry was created). When the plan works in
    a company other than the main one, set the scenario's top-level `company` to it: without it, reads and
    company-dependent values (a customer's `total_due`) follow `ofa_bot`'s default company. Never change `ofa_bot`'s
