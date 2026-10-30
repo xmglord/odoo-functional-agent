@@ -22,17 +22,17 @@ invoice, post) and `crm_lead_to_quote` (lead, opportunity, quotation, order, won
 
 ## Upkeep log
 
-| Entry | Agent time: tokens | Agent time: minutes | Author review (min) |
-|---|---|---|---|
-| leads_opportunities_pipeline.md | 12,473 | 1.3 | |
-| sales_teams.md | 14,653 | 1.2 | |
-| quotation_templates.md | 10,335 | 1.5 | |
-| pricelists.md | 16,443 | 1.4 | |
-| discounts.md | 10,585 | 0.9 | |
-| invoicing_policy.md | 12,019 | 0.9 | |
-| down_payments.md | 8,006 | 0.7 | |
-| online_signature_payment.md | 9,800 | 0.9 | |
-| payment_terms_on_quotes.md | 8,980 | 0.8 | |
-| overhead | 177,075 | 6.6 | |
+| Entry | Agent time: tokens | Agent time: minutes |
+|---|---|---|
+| leads_opportunities_pipeline.md | 12,473 | 1.3 |
+| sales_teams.md | 14,653 | 1.2 |
+| quotation_templates.md | 10,335 | 1.5 |
+| pricelists.md | 16,443 | 1.4 |
+| discounts.md | 10,585 | 0.9 |
+| invoicing_policy.md | 12,019 | 0.9 |
+| down_payments.md | 8,006 | 0.7 |
+| online_signature_payment.md | 9,800 | 0.9 |
+| payment_terms_on_quotes.md | 8,980 | 0.8 |
+| overhead | 177,075 | 6.6 |
 
-Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (15.0 M such tokens over the session, 98% of the raw total). Overhead is the shared research before the first entry plus the index and the scenarios. Author review is minutes the author spent checking the entry.
+Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (15.0 M such tokens over the session, 98% of the raw total). Overhead is the shared research before the first entry plus the index and the scenarios.

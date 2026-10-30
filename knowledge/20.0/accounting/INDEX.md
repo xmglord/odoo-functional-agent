@@ -28,18 +28,18 @@ lines' `tax_ids`). Both need the fixture plan in `scenarios/20.0/accounting/setu
 
 ## Upkeep log
 
-| Entry | Agent time: tokens | Agent time: minutes | Author review (min) |
-|---|---|---|---|
-| chart_of_accounts.md | 8,228 | 0.7 | |
-| taxes_and_tax_groups.md | 12,567 | 0.9 | |
-| fiscal_positions.md | 8,193 | 0.6 | |
-| payment_terms.md | 9,215 | 0.6 | |
-| journals.md | 11,167 | 0.9 | |
-| payments_and_reconciliation.md | 9,668 | 0.7 | |
-| multi_currency.md | 10,446 | 0.8 | |
-| lock_dates.md | 5,784 | 0.4 | |
-| analytic_accounting.md | 10,017 | 0.9 | |
-| invoicing_vs_accounting_apps.md | 10,630 | 1.1 | |
-| overhead | 274,123 | 14.6 | |
+| Entry | Agent time: tokens | Agent time: minutes |
+|---|---|---|
+| chart_of_accounts.md | 8,228 | 0.7 |
+| taxes_and_tax_groups.md | 12,567 | 0.9 |
+| fiscal_positions.md | 8,193 | 0.6 |
+| payment_terms.md | 9,215 | 0.6 |
+| journals.md | 11,167 | 0.9 |
+| payments_and_reconciliation.md | 9,668 | 0.7 |
+| multi_currency.md | 10,446 | 0.8 |
+| lock_dates.md | 5,784 | 0.4 |
+| analytic_accounting.md | 10,017 | 0.9 |
+| invoicing_vs_accounting_apps.md | 10,630 | 1.1 |
+| overhead | 274,123 | 14.6 |
 
-Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (25.8 M such tokens over the session, 99% of the raw total). Three entries (payment terms, payments and reconciliation, fiscal positions) were edited again after their end markers to add values the scenarios read live; that time is in overhead. Overhead is the shared research before the first entry plus the index and the scenarios. Author review is minutes the author spent checking the entry.
+Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (25.8 M such tokens over the session, 99% of the raw total). Three entries (payment terms, payments and reconciliation, fiscal positions) were edited again after their end markers to add values the scenarios read live; that time is in overhead. Overhead is the shared research before the first entry plus the index and the scenarios.

@@ -35,17 +35,17 @@ Notes for the 20.0 version of this area (all checked against the source, most al
 
 ## Upkeep log
 
-| Entry | Agent time: tokens | Agent time: minutes | Author review (min) |
-|---|---|---|---|
-| purchase_approval.md | 6,202 | 0.6 | |
-| bill_control.md | 9,790 | 1.0 | |
-| multi_step_routes.md | 5,742 | 0.5 | |
-| routes_mto_dropship.md | 14,706 | 1.4 | |
-| reordering_rules.md | 10,277 | 1.3 | |
-| lots_serials_packages.md | 8,943 | 0.8 | |
-| inventory_valuation.md | 13,147 | 1.4 | |
-| landed_costs.md | 8,469 | 0.7 | |
-| backorders.md | 6,817 | 0.6 | |
-| overhead | 262,048 | 14.3 | |
+| Entry | Agent time: tokens | Agent time: minutes |
+|---|---|---|
+| purchase_approval.md | 6,202 | 0.6 |
+| bill_control.md | 9,790 | 1.0 |
+| multi_step_routes.md | 5,742 | 0.5 |
+| routes_mto_dropship.md | 14,706 | 1.4 |
+| reordering_rules.md | 10,277 | 1.3 |
+| lots_serials_packages.md | 8,943 | 0.8 |
+| inventory_valuation.md | 13,147 | 1.4 |
+| landed_costs.md | 8,469 | 0.7 |
+| backorders.md | 6,817 | 0.6 |
+| overhead | 262,048 | 14.3 |
 
-Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (22.5 M such tokens over the session, 98% of the raw total). Overhead is the shared research before the first entry plus the index and the scenarios. Author review is minutes the author spent checking the entry.
+Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each entry. Tokens are the new tokens of its API calls in that window (input, cache writes and output); re-reads of already cached context are excluded, because every call re-reads the whole conversation (22.5 M such tokens over the session, 98% of the raw total). Overhead is the shared research before the first entry plus the index and the scenarios.
