@@ -32,8 +32,8 @@ the JSON-2 API). That is layer b's job.
 
 The plugin ships `hooks/hooks.json`, which runs `hooks/ofa_guard.sh` (a small wrapper around
 `hooks/ofa_guard_hook.py`) before every `Bash` call and every `mcp__firefox-devtools__navigate_page` /
-`mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script` call, plus on `Skill` calls and
-`UserPromptSubmit`. In an active session the hook reads the event JSON on stdin (`tool_name`, and
+`mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script` call, plus on `Skill` calls,
+`UserPromptSubmit`, and `SessionEnd` and `SessionStart` for `/clear` only. In an active session the hook reads the event JSON on stdin (`tool_name`, and
 `tool_input.command`, `tool_input.url` or `tool_input.function`) and either exits 0 with no output (allow) or exits 2
 with one line on stderr (deny); Claude Code shows that line to the model.
 
@@ -65,23 +65,33 @@ call is itself checked, so `ofa status; psql -l` is denied. Subagents are covere
 parent's `session_id` (measured with Claude Code 2.1.312). This is why the hook is not declared in the skills'
 frontmatter: Claude Code supports that, but such a hook does not run inside subagents (same measurement).
 
+`/clear` starts a new `session_id` in the same process, so the marker alone would not follow it. In an active session
+`SessionEnd` (`reason` `clear`) leaves a file `clear.<CLAUDE_PID>` beside the markers, and `SessionStart` (`source`
+`clear`) turns it into the new id's marker; a file older than 60 seconds is dropped. `CLAUDE_PID` stayed the same across
+two `/clear` in a row, and two sessions in one folder do not share it. Both handlers match `clear` only, so Python does
+not run at every session start on the machine. Measured in interactive sessions with 2.1.314, one run each: `psql` was
+denied after one and two `/clear`, after `/compact`, and after `/clear`, exit and `--resume`; in a session that never
+activated, it still passed after `/clear`.
+
 What can leave an agent session without the guard:
 
 - **By accident.** The model works without invoking a skill, running `ofa` or seeing a `Target:` line. A raw `psql` in
   that session is not checked, and layer a does not cover it.
-- **`/clear`: not measured.** It may start a new `session_id`. If it does, the session is inactive again until the
-  next activating event.
-- **`--resume` after 30 days.** A session resumed within 30 days of its last use stays active: measured with `claude -p --resume`, 2.1.312,
-  one run, the same `session_id` kept its marker and the raw `psql` was denied. With
-  `cleanupPeriodDays` raised above 30, a session idle for longer has lost its marker and is inactive until the next
-  activating event. An interactive `--resume` was not measured, and `--fork-session` gets a new `session_id`, so it
-  starts inactive. Compaction keeps the session running and is not expected to change this, also not measured.
+- **`/clear` with no `CLAUDE_PID`, or with Python broken.** The handoff needs that variable (present in 2.1.314) and a
+  working Python. Without them the new session id is inactive until the next activating event.
+- **`--resume` after 30 days.** A session resumed within 30 days of its last use stays active: the same `session_id`
+  keeps its marker and the raw `psql` is denied (measured with `claude -p --resume`, 2.1.312, and interactively, 2.1.314,
+  one run each). With `cleanupPeriodDays` raised above 30, a session idle for longer has lost its marker and is inactive
+  until the next activating event.
+- **`--fork-session`.** It gets a new `session_id` and has no handoff, so it starts inactive. Not measured.
 - **On purpose.** `disableAllHooks` or `--settings '{"disableAllHooks": true}'`. Deleting the marker is denied for
   Bash commands that mention `active_sessions`, `plugins/data` or `CLAUDE_PLUGIN_DATA`, but a script file that deletes
   it is not inspected (see [Known gaps](#known-gaps)).
 
 ### Failure handling
 
+- `SessionEnd` and `SessionStart` cannot block anything. If the `/clear` handoff fails, the hook exits 0 and prints
+  `ofa guard: could not keep the session guarded across /clear (<exception class>)`.
 - A hook failure must not block sessions that never used the agent, so the order is fixed: first decide whether the
   session is active or the event activates it. **With no marker and no activating event the hook exits 0, even on
   invalid JSON or a missing `session_id`.**

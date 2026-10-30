@@ -508,6 +508,117 @@ class SessionScopeTest(unittest.TestCase):
         self.assertTrue(self.marker.exists())
 
 
+class ClearHandoffTest(unittest.TestCase):
+    """/clear starts a new session id in the same process: an active session must stay active."""
+
+    def setUp(self):
+        self.data = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.data)
+        patcher = mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": self.data, "CLAUDE_PID": "4242"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.dir = Path(self.data, "active_sessions")
+        self.dir.mkdir()
+        self.handoff = self.dir / "clear.4242"
+
+    def end(self, session="old", reason="clear"):
+        return run(json.dumps({"session_id": session, "hook_event_name": "SessionEnd", "reason": reason}))
+
+    def start(self, session="new", source="clear"):
+        return run(json.dumps({"session_id": session, "hook_event_name": "SessionStart", "source": source}))
+
+    def raw_psql(self, session="new"):
+        event = dict(bash_event("psql --version"), session_id=session, hook_event_name="PreToolUse")
+        return run(json.dumps(event))[0]
+
+    def activate(self, session="old"):
+        (self.dir / session).touch()
+
+    def test_active_session_stays_guarded(self):
+        self.activate()
+        self.assertEqual(self.end(), (0, ""))
+        self.assertTrue(self.handoff.exists())
+        self.assertEqual(self.start(), (0, ""))
+        self.assertTrue((self.dir / "new").exists())
+        self.assertFalse(self.handoff.exists())
+        self.assertEqual(self.raw_psql(), 2)
+
+    def test_two_clears_in_a_row(self):
+        self.activate()
+        self.end("old")
+        self.start("second")
+        self.end("second")
+        self.start("third")
+        self.assertEqual(self.raw_psql("third"), 2)
+
+    def test_inactive_session_stays_inactive(self):
+        self.assertEqual(self.end(), (0, ""))
+        self.assertFalse(self.handoff.exists())
+        self.assertEqual(self.start(), (0, ""))
+        self.assertFalse((self.dir / "new").exists())
+        self.assertEqual(self.raw_psql(), 0)
+
+    def test_only_clear_hands_over(self):
+        self.activate()
+        self.end(reason="prompt_input_exit")
+        self.assertFalse(self.handoff.exists())
+        self.end()
+        for source in ("startup", "resume", "compact"):
+            with self.subTest(source=source):
+                self.start(source=source)
+                self.assertFalse((self.dir / "new").exists())
+        self.assertTrue(self.handoff.exists())
+
+    def test_stale_handoff_is_dropped(self):
+        self.activate()
+        self.end()
+        os.utime(self.handoff, (1, 1))
+        self.start()
+        self.assertFalse((self.dir / "new").exists())
+        self.assertFalse(self.handoff.exists())
+
+    def test_another_process_does_not_inherit(self):
+        self.activate()
+        self.end()
+        with mock.patch.dict(os.environ, {"CLAUDE_PID": "7"}):
+            self.start()
+        self.assertFalse((self.dir / "new").exists())
+        self.assertTrue(self.handoff.exists())
+
+    def test_no_usable_pid_does_nothing(self):
+        self.activate()
+        for pid in ("", "12/../x"):
+            with self.subTest(pid=pid), mock.patch.dict(os.environ, {"CLAUDE_PID": pid}):
+                self.assertEqual(self.end(), (0, ""))
+                self.assertEqual(self.start(), (0, ""))
+                self.assertEqual(sorted(p.name for p in self.dir.iterdir()), ["old"])
+
+    def test_handoff_name_is_never_a_session_id(self):
+        self.assertIsNone(hook.SESSION_ID_RE.match(self.handoff.name))
+
+    def test_failure_is_reported_and_blocks_nothing(self):
+        self.activate()
+        self.end()
+        self.handoff.unlink()
+        self.handoff.mkdir()
+        code, err = self.start()
+        self.assertEqual(code, 0)
+        self.assertRegex(err, r"^ofa guard: could not keep the session guarded across /clear \(\w+\)\n$")
+
+    def test_events_of_an_active_session_are_not_treated_as_tool_calls(self):
+        self.activate()
+        self.assertEqual(self.end(), (0, ""))
+        self.activate("new")
+        self.assertEqual(self.start(), (0, ""))
+
+    def test_old_handoffs_are_pruned(self):
+        old = self.dir / "clear.1"
+        old.touch()
+        os.utime(old, (1, 1))
+        run(json.dumps({"session_id": "s2", "hook_event_name": "UserPromptSubmit", "prompt": "Target: x"}))
+        self.assertFalse(old.exists())
+
+
 class WrapperTest(unittest.TestCase):
     """hooks/ofa_guard.sh when the Python guard cannot give an answer."""
 
@@ -604,8 +715,11 @@ class HooksJsonTest(unittest.TestCase):
 
     def test_handlers(self):
         hooks = self.handlers()
-        self.assertEqual(set(hooks), {"PreToolUse", "UserPromptSubmit"})
+        self.assertEqual(set(hooks), {"PreToolUse", "UserPromptSubmit", "SessionEnd", "SessionStart"})
         self.assertEqual({e["matcher"] for e in hooks["PreToolUse"]}, {"Bash", "Skill", f"{NAVIGATE}|{NEW_PAGE}|{EVALUATE}"})
+        # Only /clear: Python must not run at every session start on the machine.
+        self.assertEqual([e["matcher"] for e in hooks["SessionEnd"]], ["clear"])
+        self.assertEqual([e["matcher"] for e in hooks["SessionStart"]], ["clear"])
         for entries in hooks.values():
             for e in entries:
                 for h in e["hooks"]:

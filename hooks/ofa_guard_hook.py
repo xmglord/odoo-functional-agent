@@ -6,7 +6,8 @@ every session on the machine, so it does nothing until the session uses the
 agent: invoking the odoo-functional or odoo-explain skill, running `ofa`, or a
 prompt with a `Target:` line activates it, and a marker file keeps it active for
 that session. The help skill and `ofa-check` do not: asking for help is not using
-the agent.
+the agent. `/clear` starts a new session id in the same process, so SessionEnd and
+SessionStart hand the marker over to it.
 
 In an active session it denies (exit 2, one line on stderr) Bash commands that
 reach Postgres or an Odoo server without going through `ofa`, and browser
@@ -45,6 +46,11 @@ MARKER_DIR = "active_sessions"
 MARKER_MAX_AGE_SECONDS = 30 * 86400
 # A Bash command may not touch the markers: that would switch the guard off from inside the session.
 MARKER_ACCESS_RE = re.compile(MARKER_DIR + r"|plugins/data|CLAUDE_PLUGIN_DATA")
+# /clear: SessionEnd leaves clear.<CLAUDE_PID> beside the markers (the dot keeps it from being a session id) and
+# SessionStart, about 60 ms later, turns it into the new id's marker. CLAUDE_PID is the same across both events.
+SESSION_EVENTS = frozenset({"SessionEnd", "SessionStart"})
+CLAUDE_PID_RE = re.compile(r"^[0-9]{1,10}$")
+CLEAR_HANDOFF_MAX_AGE_SECONDS = 60
 
 # In-page JavaScript must never navigate or talk to the network: that would reach
 # any host without going through the navigation rule. ofa's own scripts (render
@@ -498,6 +504,32 @@ def activate(marker):
     prune_markers(directory, time.time())
 
 
+def handoff_path():
+    """Path of this process's /clear handoff, or None when the environment cannot name one."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    pid = os.environ.get("CLAUDE_PID", "")
+    if not data_dir or not CLAUDE_PID_RE.match(pid):
+        return None
+    return os.path.join(data_dir, MARKER_DIR, f"clear.{pid}")
+
+
+def carry_over_clear(event, marker, active):
+    """Keep an active session active across /clear. Only ever adds a guard, never removes one."""
+    path = handoff_path()
+    if path is None:
+        return
+    if event.get("hook_event_name") == "SessionEnd":
+        if active and event.get("reason") == "clear":
+            with open(path, "a"):
+                pass
+            os.utime(path)
+    elif event.get("source") == "clear" and os.path.exists(path):
+        fresh = time.time() - os.stat(path).st_mtime <= CLEAR_HANDOFF_MAX_AGE_SECONDS
+        os.unlink(path)
+        if fresh:
+            activate(marker)
+
+
 # --------------------------------------------------------------------- main
 
 def decide(event):
@@ -548,6 +580,12 @@ def main(stdin=None, stderr=None):
     stdin = sys.stdin if stdin is None else stdin
     stderr = sys.stderr if stderr is None else stderr
     event, marker, active, activating = session_state(stdin)
+    if event is not None and event.get("hook_event_name") in SESSION_EVENTS:
+        try:
+            carry_over_clear(event, marker, active)
+        except Exception as e:  # these events cannot block anything, so all that is left is to say it
+            print(f"ofa guard: could not keep the session guarded across /clear ({type(e).__name__})", file=stderr)
+        return 0
     if not active and not activating:
         return 0
     try:
