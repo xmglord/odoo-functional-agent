@@ -51,6 +51,13 @@ A session becomes active, and stays active, on the first of these:
 - a prompt with a `Target: <name>` line, or a prompt that starts with `/odoo-functional-agent:odoo-functional` or
   `/odoo-functional-agent:odoo-explain` (a skill typed by the user makes no `Skill` call)
 
+The `help` skill does not activate it, typed or invoked: someone asking how the plugin works is not using the agent.
+It reads the environment with `ofa-check`, a separate command that prints what `ofa doctor`, `ofa server status` and
+`ofa targets` print. The hook has no exception for it: `ofa-check` simply is not the word `ofa`, so the list above is
+complete and `ofa targets` followed by `psql` is still denied. A session that ran only `help` is an inactive session
+like any other, so `psql` passes there (measured with `claude -p`, 2.1.314: 11 of 11 sessions; `ofa doctor` or `ofa
+targets` followed by `psql` was denied in 2 of 2, and `ofa targets` after `help` in 1 of 1).
+
 Activation writes an empty marker at `${CLAUDE_PLUGIN_DATA}/active_sessions/<session_id>`. It outlives the session, so a
 resumed session stays guarded, and each use refreshes it. Each activation prunes markers unused for 30 days, Claude
 Code's default transcript retention (`cleanupPeriodDays`): past that, a session cannot be resumed anyway. The activating
@@ -90,7 +97,8 @@ What can leave an agent session without the guard:
 - What remains: if `sh` cannot start, `onFailure` blocks the call in every session. Claude Code's Bash tool needs a
   shell too, so that machine is already broken.
 - With Python broken, the wrapper's activation check is coarser than Python's: it denies any event with the word `ofa`
-  or the plugin's skill prefix, and prompts with a `Target:` text anywhere.
+  or the plugin's skill prefix (so `help` too, which could not run `ofa-check` anyway), and prompts with a `Target:` text
+  anywhere.
 
 ### Bash rules
 

@@ -3,8 +3,10 @@
 
 Reads the Claude Code hook event JSON on stdin. Installed plugins run this for
 every session on the machine, so it does nothing until the session uses the
-agent: invoking a skill of this plugin, running `ofa`, or a prompt with a
-`Target:` line activates it, and a marker file keeps it active for that session.
+agent: invoking the odoo-functional or odoo-explain skill, running `ofa`, or a
+prompt with a `Target:` line activates it, and a marker file keeps it active for
+that session. The help skill and `ofa-check` do not: asking for help is not using
+the agent.
 
 In an active session it denies (exit 2, one line on stderr) Bash commands that
 reach Postgres or an Odoo server without going through `ofa`, and browser

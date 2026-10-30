@@ -67,8 +67,8 @@ alone. Full detail: [docs/guard.md](docs/guard.md).
   loopback and carry the marker UUID written when it was created; every client checks this before its first call.
 - **Layer b, a PreToolUse hook** shipped with the plugin. It checks every shell command and denies direct `psql`,
   `odoo-bin`, HTTP calls to Odoo and browser navigation off loopback. It acts only from the moment a session uses
-  the agent (a skill of this plugin, an `ofa` command or a `Target:` line in a prompt), so your other projects are not
-  affected, and before that moment there is no protection. A resumed session stays guarded for 30 days after its last use. `/clear` is not measured: if it starts a new session
+  the agent (the `odoo-functional` or `odoo-explain` skill, an `ofa` command or a `Target:` line in a prompt; `help`
+  does not count), so your other projects are not affected, and before that moment there is no protection. A resumed session stays guarded for 30 days after its last use. `/clear` is not measured: if it starts a new session
   id, the session is inactive until its next activating event. See [When it acts](docs/guard.md#when-it-acts).
 - **Server hardening.** `list_db = False`, `dbfilter = ^ofa_demo_.*$`, `max_cron_threads = 0`; `ofa server start`
   refuses a config without them.
@@ -169,6 +169,9 @@ to delivery.
 ```
 
 Ask for the skill by name rather than describing the need and waiting for it to start.
+
+To see the flow again and check whether your machine is ready, without changing anything, type
+`/odoo-functional-agent:help` or ask "how do I use this plugin?".
 
 ### What happens
 

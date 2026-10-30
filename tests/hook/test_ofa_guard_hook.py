@@ -396,6 +396,23 @@ class SessionScopeTest(unittest.TestCase):
         self.assertEqual(run(json.dumps(event)), (0, ""))
         self.assertFalse(self.marker.exists())
 
+    def test_help_does_not_activate(self):
+        help_skill = self.event(tool_name="Skill", tool_input={"skill": "odoo-functional-agent:help"})
+        for event in [help_skill, self.prompt("/odoo-functional-agent:help"), self.bash("ofa-check"),
+                      self.bash("/repo/bin/ofa-check"), self.bash("ofa-check 2>&1 | head -5")]:
+            with self.subTest(event=event):
+                self.assertEqual(run(json.dumps(event)), (0, ""))
+                self.assertFalse(self.marker.exists())
+        self.assertEqual(run(json.dumps(self.bash("psql --version"))), (0, ""))
+
+    def test_readonly_ofa_commands_still_activate(self):
+        for command in ["ofa doctor", "ofa server status", "ofa targets"]:
+            with self.subTest(command=command):
+                self.marker.unlink(missing_ok=True)
+                run(json.dumps(self.bash(command)))
+                self.assertTrue(self.marker.exists())
+                self.assertEqual(run(json.dumps(self.bash("psql -l")))[0], 2)
+
     def test_ofa_command_activates(self):
         for command in ["ofa status", "cd x && ofa apply y", "/repo/bin/ofa server status", "sudo ofa x",
                         "bash -c 'ofa x'", "echo $(ofa x)", "ofa x; cat 'unbalanced"]:
@@ -534,6 +551,11 @@ class WrapperTest(unittest.TestCase):
         self.assertEqual(self.run_wrapper(bash_event("psql -l"), path=str(tools)), 0)
         self.activate()
         self.assertEqual(self.run_wrapper(bash_event("ls"), path=str(tools)), 2)
+
+    def test_ofa_check_is_not_activating_when_python_cannot_run(self):
+        self.fake_python("exit 1")
+        self.assertEqual(self.run_wrapper(bash_event("ofa-check")), 0)
+        self.assertEqual(self.run_wrapper(bash_event("/repo/bin/ofa-check")), 0)
 
     def test_python_hang(self):
         self.fake_python("exit 124")  # what timeout(1) returns when it kills python
