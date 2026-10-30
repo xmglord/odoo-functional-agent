@@ -7,7 +7,8 @@ agent: invoking the odoo-functional or odoo-explain skill, running `ofa`, or a
 prompt with a `Target:` line activates it, and a marker file keeps it active for
 that session. The help skill and `ofa-check` do not: asking for help is not using
 the agent. `/clear` starts a new session id in the same process, so SessionEnd and
-SessionStart hand the marker over to it.
+SessionStart hand the marker over to it. A fork gets a new id too, and it is
+activated by what its inherited transcript holds.
 
 In an active session it denies (exit 2, one line on stderr) Bash commands that
 reach Postgres or an Odoo server without going through `ofa`, and browser
@@ -51,6 +52,15 @@ MARKER_ACCESS_RE = re.compile(MARKER_DIR + r"|plugins/data|CLAUDE_PLUGIN_DATA")
 SESSION_EVENTS = frozenset({"SessionEnd", "SessionStart"})
 CLAUDE_PID_RE = re.compile(r"^[0-9]{1,10}$")
 CLEAR_HANDOFF_MAX_AGE_SECONDS = 60
+# A fork (--fork-session, /branch) gets a new session id and nothing names its origin, but it inherits the
+# conversation. SessionStart leaves <id>.fork, because with --fork-session the transcript is not on disk yet, and the
+# session's next event reads the transcript for what would have activated the guard.
+FORK_SUFFIX = ".fork"
+TRANSCRIPT_HINT_RE = re.compile(r"odoo-functional-agent:|target|\bofa\b", re.I)
+TYPED_SKILL_RE = re.compile(r"<command-name>/odoo-functional-agent:odoo-(?:functional|explain)</command-name>")
+# /compact and /clear drop what activated the guard from the conversation a later fork inherits. SessionStart puts
+# this in their place: Claude Code records additionalContext in the transcript as an attachment.
+GUARD_CONTEXT = "odoo-functional-agent: this session uses the agent, so the ofa guard stays on."
 
 # In-page JavaScript must never navigate or talk to the network: that would reach
 # any host without going through the navigation rule. ofa's own scripts (render
@@ -530,6 +540,57 @@ def carry_over_clear(event, marker, active):
             activate(marker)
 
 
+def note_fork(event, marker):
+    if event.get("source") == "fork" and marker is not None:
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker + FORK_SUFFIX, "a"):
+            pass
+
+
+def entry_activates(entry):
+    """True when one transcript entry holds what would have activated the guard when it happened."""
+    message = entry.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if entry.get("type") == "attachment":
+        return GUARD_CONTEXT in json.dumps(entry.get("attachment"))
+    if entry.get("type") == "user" and not entry.get("isMeta"):
+        blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
+        texts = [b.get("text") for b in blocks if isinstance(b, dict) and b.get("type") == "text"]
+        return any(isinstance(t, str) and (ACTIVATING_PROMPT_RE.search(t) or TYPED_SKILL_RE.search(t)) for t in texts)
+    if entry.get("type") == "assistant" and isinstance(content, list):
+        return any(is_activating({"hook_event_name": "PreToolUse", "tool_name": b.get("name"), "tool_input": b.get("input")})
+                   for b in content if isinstance(b, dict) and b.get("type") == "tool_use")
+    return False
+
+
+def transcript_activates(path):
+    with open(path, errors="replace") as f:
+        for line in f:
+            if TRANSCRIPT_HINT_RE.search(line):
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(entry, dict) and entry_activates(entry):
+                    return True
+    return False
+
+
+def resolve_fork(event, marker):
+    """Settle a pending fork. Returns whether this event must be treated as coming from an active session."""
+    pending = marker + FORK_SUFFIX
+    if not os.path.exists(pending):
+        return False
+    path = event.get("transcript_path")
+    if not isinstance(path, str) or not os.path.isfile(path):
+        return event.get("hook_event_name") == "PreToolUse"  # not on disk yet: the rules apply, nothing is decided
+    inherited = transcript_activates(path)
+    if inherited:
+        activate(marker)
+    os.unlink(pending)
+    return inherited
+
+
 # --------------------------------------------------------------------- main
 
 def decide(event):
@@ -567,6 +628,11 @@ def session_state(stdin):
             return None, None, False, False
         marker = marker_path(event)
         active = marker is not None and os.path.exists(marker)
+        if marker is not None and not active:
+            try:
+                active = resolve_fork(event, marker)
+            except Exception:  # a fork that cannot be read is treated as an agent session
+                active = True
         try:
             activating = is_activating(event)
         except Exception:
@@ -576,23 +642,28 @@ def session_state(stdin):
         return None, None, False, False
 
 
-def main(stdin=None, stderr=None):
+def main(stdin=None, stderr=None, stdout=None):
     stdin = sys.stdin if stdin is None else stdin
     stderr = sys.stderr if stderr is None else stderr
+    stdout = sys.stdout if stdout is None else stdout
     event, marker, active, activating = session_state(stdin)
     if event is not None and event.get("hook_event_name") in SESSION_EVENTS:
         try:
             carry_over_clear(event, marker, active)
+            note_fork(event, marker)
+            if event.get("source") in ("clear", "compact") and marker is not None and os.path.exists(marker):
+                output = {"hookEventName": "SessionStart", "additionalContext": GUARD_CONTEXT}
+                print(json.dumps({"hookSpecificOutput": output}), file=stdout)
         except Exception as e:  # these events cannot block anything, so all that is left is to say it
-            print(f"ofa guard: could not keep the session guarded across /clear ({type(e).__name__})", file=stderr)
+            print(f"ofa guard: could not keep the session guarded across /clear or a fork ({type(e).__name__})", file=stderr)
         return 0
     if not active and not activating:
         return 0
     try:
-        if active:
-            os.utime(marker)  # the age counts from the last use, so a session in use never lapses
-        else:
+        if activating and not os.path.exists(marker):
             activate(marker)
+        elif os.path.exists(marker):
+            os.utime(marker)  # the age counts from the last use, so a session in use never lapses
         decide(event)
         return 0
     except Deny as e:

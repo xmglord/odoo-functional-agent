@@ -50,7 +50,7 @@
     ],
     "SessionStart": [
       {
-        "matcher": "clear",
+        "matcher": "clear|compact|fork",
         "hooks": [
           {
             "type": "command",

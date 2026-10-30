@@ -603,7 +603,7 @@ class ClearHandoffTest(unittest.TestCase):
         self.handoff.mkdir()
         code, err = self.start()
         self.assertEqual(code, 0)
-        self.assertRegex(err, r"^ofa guard: could not keep the session guarded across /clear \(\w+\)\n$")
+        self.assertRegex(err, r"^ofa guard: could not keep the session guarded across /clear or a fork \(\w+\)\n$")
 
     def test_events_of_an_active_session_are_not_treated_as_tool_calls(self):
         self.activate()
@@ -617,6 +617,152 @@ class ClearHandoffTest(unittest.TestCase):
         os.utime(old, (1, 1))
         run(json.dumps({"session_id": "s2", "hook_event_name": "UserPromptSubmit", "prompt": "Target: x"}))
         self.assertFalse(old.exists())
+
+
+class ForkTest(unittest.TestCase):
+    """A fork gets a new id and nothing names its origin: its inherited transcript decides."""
+
+    def setUp(self):
+        self.data = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.data)
+        patcher = mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": self.data})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.dir = Path(self.data, "active_sessions")
+        self.marker = self.dir / "fork1"
+        self.pending = self.dir / "fork1.fork"
+        self.transcript = Path(self.data, "fork1.jsonl")
+
+    def write(self, *entries):
+        self.transcript.write_text("".join(json.dumps(e) + "\n" for e in entries))
+
+    def start(self):
+        event = {"session_id": "fork1", "hook_event_name": "SessionStart", "source": "fork",
+                 "transcript_path": str(self.transcript)}
+        self.assertEqual(run(json.dumps(event)), (0, ""))
+
+    def event(self, command="psql --version"):
+        return dict(bash_event(command), session_id="fork1", hook_event_name="PreToolUse",
+                    transcript_path=str(self.transcript))
+
+    def prompt(self):
+        return {"session_id": "fork1", "hook_event_name": "UserPromptSubmit", "prompt": "hello",
+                "transcript_path": str(self.transcript)}
+
+    @staticmethod
+    def user(text, **extra):
+        return {"type": "user", "message": {"role": "user", "content": text}, **extra}
+
+    @staticmethod
+    def tool(name, **tool_input):
+        return {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": tool_input}]}}
+
+    def test_inherited_activation_guards_the_fork(self):
+        cases = {
+            "target line": self.user("Need this.\nTarget: demo1"),
+            "text block": self.user([{"type": "text", "text": "Target: demo1"}]),
+            "typed skill": self.user("<command-name>/odoo-functional-agent:odoo-explain</command-name>"),
+            "skill call": self.tool("Skill", skill="odoo-functional-agent:odoo-functional"),
+            "ofa command": self.tool("Bash", command="cd x && ofa targets"),
+        }
+        for name, entry in cases.items():
+            with self.subTest(name=name):
+                self.marker.unlink(missing_ok=True)
+                self.start()
+                self.write(self.user("first"), entry)
+                self.assertEqual(run(json.dumps(self.event()))[0], 2)
+                self.assertTrue(self.marker.exists())
+                self.assertFalse(self.pending.exists())
+
+    def test_guard_context_in_the_transcript_guards_the_fork(self):
+        self.start()
+        self.write({"type": "attachment", "attachment": {"type": "hook_additional_context", "content": [hook.GUARD_CONTEXT]}})
+        self.assertEqual(run(json.dumps(self.event()))[0], 2)
+        self.assertTrue(self.marker.exists())
+
+    def test_guard_context_quoted_elsewhere_does_not_count(self):
+        self.start()
+        self.write(self.user([{"type": "tool_result", "content": hook.GUARD_CONTEXT}]))
+        self.assertEqual(run(json.dumps(self.event())), (0, ""))
+        self.assertFalse(self.marker.exists())
+
+    def session_start_output(self, source):
+        out = io.StringIO()
+        event = {"session_id": "fork1", "hook_event_name": "SessionStart", "source": source}
+        self.assertEqual(hook.main(io.StringIO(json.dumps(event)), io.StringIO(), out), 0)
+        return out.getvalue()
+
+    def test_compact_and_clear_leave_the_context_in_an_active_session(self):
+        self.dir.mkdir()
+        self.marker.touch()
+        for source in ("compact", "clear"):
+            with self.subTest(source=source):
+                output = json.loads(self.session_start_output(source))["hookSpecificOutput"]
+                self.assertEqual(output, {"hookEventName": "SessionStart", "additionalContext": hook.GUARD_CONTEXT})
+
+    def test_inactive_session_gets_no_context(self):
+        for source in ("compact", "clear"):
+            with self.subTest(source=source):
+                self.assertEqual(self.session_start_output(source), "")
+
+    def test_fork_without_activation_stays_inactive(self):
+        cases = {
+            "plain": [self.user("hello"), self.tool("Bash", command="ls")],
+            "help": [self.user("<command-name>/odoo-functional-agent:help</command-name>"),
+                     self.tool("Skill", skill="odoo-functional-agent:help"), self.tool("Bash", command="ofa-check")],
+            "word only": [self.user("what is the target: market"), self.tool("Bash", command="grep ofa README.md")],
+            "skill body": [self.user("Target: quoted in a skill body", isMeta=True)],
+            "tool result": [self.user([{"type": "tool_result", "content": "Target: demo1"}])],
+        }
+        for name, entries in cases.items():
+            with self.subTest(name=name):
+                self.start()
+                self.write(*entries)
+                self.assertEqual(run(json.dumps(self.event())), (0, ""))
+                self.assertFalse(self.marker.exists())
+                self.assertFalse(self.pending.exists())
+
+    def test_transcript_not_on_disk_yet(self):
+        self.start()
+        self.assertTrue(self.pending.exists())
+        self.assertEqual(run(json.dumps(self.prompt())), (0, ""))
+        self.assertTrue(self.pending.exists())
+        self.assertEqual(run(json.dumps(self.event("ls"))), (0, ""))
+        self.assertEqual(run(json.dumps(self.event()))[0], 2)
+        self.assertFalse(self.marker.exists())
+        self.write(self.user("hello"))
+        self.assertEqual(run(json.dumps(self.event())), (0, ""))
+        self.assertFalse(self.pending.exists())
+
+    def test_prompt_settles_the_fork_when_the_transcript_is_there(self):
+        self.start()
+        self.write(self.user("Target: demo1"))
+        self.assertEqual(run(json.dumps(self.prompt())), (0, ""))
+        self.assertTrue(self.marker.exists())
+        self.assertEqual(run(json.dumps(self.event()))[0], 2)
+
+    def test_unreadable_transcript_is_treated_as_an_agent_session(self):
+        self.start()
+        self.transcript.mkdir()
+        self.assertEqual(run(json.dumps(self.event()))[0], 2)
+
+    def test_broken_lines_are_skipped(self):
+        self.start()
+        self.transcript.write_text('{"not json target\n[1, "target"]\n' + json.dumps(self.user("Target: x")) + "\n")
+        self.assertEqual(run(json.dumps(self.event()))[0], 2)
+
+    def test_startup_and_resume_leave_nothing(self):
+        for source in ("startup", "resume"):
+            event = {"session_id": "fork1", "hook_event_name": "SessionStart", "source": source}
+            self.assertEqual(run(json.dumps(event)), (0, ""))
+        self.assertFalse(self.dir.exists())
+
+    def test_pending_name_is_never_a_session_id(self):
+        self.assertIsNone(hook.SESSION_ID_RE.match(self.pending.name))
+
+    def test_session_with_no_pending_fork_never_reads_its_transcript(self):
+        with mock.patch.object(hook, "transcript_activates", side_effect=AssertionError("read")):
+            self.assertEqual(run(json.dumps(self.event())), (0, ""))
 
 
 class WrapperTest(unittest.TestCase):
@@ -719,7 +865,7 @@ class HooksJsonTest(unittest.TestCase):
         self.assertEqual({e["matcher"] for e in hooks["PreToolUse"]}, {"Bash", "Skill", f"{NAVIGATE}|{NEW_PAGE}|{EVALUATE}"})
         # Only /clear: Python must not run at every session start on the machine.
         self.assertEqual([e["matcher"] for e in hooks["SessionEnd"]], ["clear"])
-        self.assertEqual([e["matcher"] for e in hooks["SessionStart"]], ["clear"])
+        self.assertEqual([e["matcher"] for e in hooks["SessionStart"]], ["clear|compact|fork"])
         for entries in hooks.values():
             for e in entries:
                 for h in e["hooks"]:

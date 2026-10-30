@@ -33,7 +33,7 @@ the JSON-2 API). That is layer b's job.
 The plugin ships `hooks/hooks.json`, which runs `hooks/ofa_guard.sh` (a small wrapper around
 `hooks/ofa_guard_hook.py`) before every `Bash` call and every `mcp__firefox-devtools__navigate_page` /
 `mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script` call, plus on `Skill` calls,
-`UserPromptSubmit`, and `SessionEnd` and `SessionStart` for `/clear` only. In an active session the hook reads the event JSON on stdin (`tool_name`, and
+`UserPromptSubmit`, and `SessionEnd` and `SessionStart` for `/clear`, compaction and forks only. In an active session the hook reads the event JSON on stdin (`tool_name`, and
 `tool_input.command`, `tool_input.url` or `tool_input.function`) and either exits 0 with no output (allow) or exits 2
 with one line on stderr (deny); Claude Code shows that line to the model.
 
@@ -68,30 +68,46 @@ frontmatter: Claude Code supports that, but such a hook does not run inside suba
 `/clear` starts a new `session_id` in the same process, so the marker alone would not follow it. In an active session
 `SessionEnd` (`reason` `clear`) leaves a file `clear.<CLAUDE_PID>` beside the markers, and `SessionStart` (`source`
 `clear`) turns it into the new id's marker; a file older than 60 seconds is dropped. `CLAUDE_PID` stayed the same across
-two `/clear` in a row, and two sessions in one folder do not share it. Both handlers match `clear` only, so Python does
-not run at every session start on the machine. Measured in interactive sessions with 2.1.314, one run each: `psql` was
-denied after one and two `/clear`, after `/compact`, and after `/clear`, exit and `--resume`; in a session that never
-activated, it still passed after `/clear`.
+two `/clear` in a row, and two sessions in one folder do not share it. The handlers match `clear`, `compact` and `fork`
+only, so Python does not run at every session start on the machine. Measured in interactive sessions with 2.1.314, one
+run each: `psql` was denied after one and two `/clear`, after `/compact`, and after `/clear`, exit and `--resume`; in a
+session that never activated, it still passed after `/clear`.
+
+A fork (`--fork-session`, `/branch`) also gets a new `session_id`, and with `--fork-session` nothing in the event or the
+transcript names the original session. It inherits the conversation, though, so the conversation decides. `SessionStart`
+(`source` `fork`) leaves `<session_id>.fork` beside the markers, because with `--fork-session` the transcript is not on
+disk yet. The session's next event reads the transcript with the same activation rules: a `Target:` line, a typed or
+invoked skill, an `ofa` command. Evidence marks the session; no evidence leaves it inactive. If a tool call arrives before
+the transcript does, the rules apply to that call and nothing is decided. A transcript that cannot be read counts as an
+agent session.
+
+`/compact` and `/clear` remove that evidence from what a later fork inherits. So in an active session `SessionStart`
+(`source` `compact` or `clear`) returns one line of `additionalContext`, which Claude Code records in the transcript and a
+fork inherits. It counts only as an attachment, not when quoted in a tool result. Measured in interactive sessions with
+2.1.314, one run each: `psql` was denied in forks of sessions activated by a `Target:` line, a typed skill and an `ofa`
+command, after `/branch`, in a fork of a fork, after `/compact` followed by `--fork-session` or `/branch`, and after
+`/clear` followed by `--fork-session`. It passed in forks of a plain session (also after `/compact` or `/branch`) and of
+a session that only ran `help`.
 
 What can leave an agent session without the guard:
 
 - **By accident.** The model works without invoking a skill, running `ofa` or seeing a `Target:` line. A raw `psql` in
   that session is not checked, and layer a does not cover it.
-- **`/clear` with no `CLAUDE_PID`, or with Python broken.** The handoff needs that variable (present in 2.1.314) and a
-  working Python. Without them the new session id is inactive until the next activating event.
+- **`/clear` or a fork with Python broken, or `/clear` with no `CLAUDE_PID`.** Both need a working Python, and `/clear`
+  needs that variable (present in 2.1.314). Without them the new session id is inactive until the next activating
+  event.
 - **`--resume` after 30 days.** A session resumed within 30 days of its last use stays active: the same `session_id`
   keeps its marker and the raw `psql` is denied (measured with `claude -p --resume`, 2.1.312, and interactively, 2.1.314,
   one run each). With `cleanupPeriodDays` raised above 30, a session idle for longer has lost its marker and is inactive
   until the next activating event.
-- **`--fork-session`.** It gets a new `session_id` and has no handoff, so it starts inactive. Not measured.
 - **On purpose.** `disableAllHooks` or `--settings '{"disableAllHooks": true}'`. Deleting the marker is denied for
   Bash commands that mention `active_sessions`, `plugins/data` or `CLAUDE_PLUGIN_DATA`, but a script file that deletes
   it is not inspected (see [Known gaps](#known-gaps)).
 
 ### Failure handling
 
-- `SessionEnd` and `SessionStart` cannot block anything. If the `/clear` handoff fails, the hook exits 0 and prints
-  `ofa guard: could not keep the session guarded across /clear (<exception class>)`.
+- `SessionEnd` and `SessionStart` cannot block anything. If the handoff fails, the hook exits 0 and prints
+  `ofa guard: could not keep the session guarded across /clear or a fork (<exception class>)`.
 - A hook failure must not block sessions that never used the agent, so the order is fixed: first decide whether the
   session is active or the event activates it. **With no marker and no activating event the hook exits 0, even on
   invalid JSON or a missing `session_id`.**
