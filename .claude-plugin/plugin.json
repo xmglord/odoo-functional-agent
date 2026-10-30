@@ -1,6 +1,6 @@
 {
   "name": "odoo-functional-agent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turns a business requirement into a reviewable Odoo 20 configuration plan, applies it to a local demo database and proves it with functional tests.",
   "author": {"name": "xmglord"},
   "repository": "https://github.com/xmglord/odoo-functional-agent",
