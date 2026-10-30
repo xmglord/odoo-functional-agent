@@ -49,7 +49,8 @@ INDEX = {
         "project.project": [_model("project", {"name": _f(), "allow_milestones": _f("Boolean")})],
         "approval.request": [_model("approvals", {"name": _f()})],
     },
-    "xmlids": {"base.main_company": "base", "base.group_user": "base", "project.group_project_milestone": "project"},
+    "xmlids": {"base.main_company": "base", "base.group_user": "base", "project.group_project_milestone": "project",
+               "project.group_project_manager": "project", "project.only_here": "hr_timesheet"},
     "base_methods": ["write", "create", "search"],
     "choices": ["delivered_milestones"],
     "view_options": ["no_create", "badges_many2one"],
@@ -176,6 +177,15 @@ class PlanJsonTest(LintCase):
                            op("op_040", "call_method", model="res.partner", method="write", params={},
                               target={"$ref": "__ofa__.missing"}, skip_if={"model": "res.partner", "domain": []})])
         self.assertEqual(self.codes(r), [("NOT_IN_20", "base.no_such_company"), ("UNRESOLVED_REF", "__ofa__.missing")])
+
+    def test_ref_extended_by_a_module_the_plan_does_not_install(self):
+        install = op("op_010", "install_modules", modules=["project"])
+        ok = op("op_020", "upsert_record", model="res.partner", key="p",
+                values={"company_id": {"$ref": "project.group_project_manager"}})
+        self.assertEqual(self.codes(self.run_lint([install, ok])), [])
+        other = op("op_030", "upsert_record", model="res.partner", key="q",
+                   values={"company_id": {"$ref": "project.only_here"}})
+        self.assertEqual(self.codes(self.run_lint([install, other])), [("NEEDS_MODULE", "project.only_here")])
 
     def test_methods(self):
         skip = {"model": "sale.order", "domain": [["state", "=", "sale"]]}
@@ -306,6 +316,16 @@ class SourceIndexTest(unittest.TestCase):
                 kind = fields.Selection(selection_add=[('c', 'C')])
             """)
         self.write(addons / "ee_y" / "tests" / "test_x.py", "class T:\n    _name = 'test.only'\n")
+        # 20.0: hr_timesheet extends a group project defines, and sorts before it in the walk.
+        self.write(addons / "hr_timesheet" / "__manifest__.py", "{'name': 'T', 'depends': ['project']}")
+        self.write(addons / "hr_timesheet" / "security" / "s.xml", """
+            <odoo><record id="project.group_project_manager" model="res.groups"/>
+            <record id="project.only_here" model="res.groups"/></odoo>
+            """)
+        self.write(addons / "project" / "__manifest__.py", "{'name': 'P', 'depends': []}")
+        self.write(addons / "project" / "security" / "project_security.xml", """
+            <odoo><record id="group_project_manager" model="res.groups"/></odoo>
+            """)
         self.odoo_pkg = self.tmp / "odoo"
         self.write(self.odoo_pkg / "orm" / "models.py", "class BaseModel:\n    def write(self, vals):\n        pass\n")
         self.index = SourceIndex(source_index.build([addons], self.odoo_pkg))
@@ -324,6 +344,12 @@ class SourceIndexTest(unittest.TestCase):
         self.assertEqual(ix.method_modules("x.thing", "action_go"), {"base_x"})
         self.assertEqual(ix.method_modules("x.thing", "write"), {"base"})
         self.assertNotIn("test.only", ix.models)
+
+    def test_extended_xmlid_belongs_to_the_module_it_names(self):
+        self.assertEqual(self.index.xmlids["project.group_project_manager"], "project")
+
+    def test_xmlid_only_another_module_writes_keeps_that_module(self):
+        self.assertEqual(self.index.xmlids["project.only_here"], "hr_timesheet")
 
     def test_modules_xmlids_and_names(self):
         ix = self.index

@@ -192,7 +192,12 @@ def build(roots, odoo_pkg):
                     view_options.update(_OPTION_KEY_RE.findall(opts))
                 for xid in _XMLID_RE.findall(text):
                     full = xid if "." in xid else f"{mdir.name}.{xid}"
-                    xmlids.setdefault(full, mdir.name)
+                    # A module may extend another's record (`<record id="project.x">`): the module named
+                    # in the xmlid owns it, whichever of the two the walk reaches first.
+                    if full.partition(".")[0] == mdir.name:
+                        xmlids[full] = mdir.name
+                    else:
+                        xmlids.setdefault(full, mdir.name)
     base_methods = set()
     for rel in _ORM_FILES:
         path = odoo_pkg / rel
