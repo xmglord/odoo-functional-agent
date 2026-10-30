@@ -14,6 +14,7 @@ changed afterwards.
 | [Shared vs company-specific records](shared_vs_company_records.md) | products or contacts shared by the group, records private to one company, "incompatible companies" errors, per-company prices or fiscal positions on a shared record |
 | [User access to companies](user_company_access.md) | users who work for several companies, users restricted to one company, the company switcher |
 | [Per-company vs global settings](per_company_settings.md) | a setting only one company should use, settings in a multi-company database |
+| [Company of a project created from a sale](project_template_company.md) | project templates on service products, projects or analytic accounts created by a sale with no company |
 | [Inter-company rules](intercompany_rules.md) | companies that buy from and sell to each other, mirror sales/purchase orders, inter-company invoices and bills |
 | [Multi-company reporting and consolidation](multi_company_reporting.md) | group balance sheet or P&L, consolidation, VAT groups (tax units), inter-company balances |
 
@@ -42,6 +43,7 @@ Not covered by a scenario: inter-company invoices to bills, sales orders to purc
 | per_company_settings.md | 3,566 | 0.5 | |
 | intercompany_rules.md | 6,394 | 0.7 | |
 | multi_company_reporting.md | 2,815 | 0.4 | |
+| project_template_company.md | not measured | not measured | |
 | overhead | 284,189 | 19.5 | |
 
 Agent time is measured from the authoring agent's session transcript, between markers it printed before and after each
