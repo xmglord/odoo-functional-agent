@@ -1,6 +1,6 @@
 ---
 name: odoo-explain
-description: Answer "why", "what is" and "when should I" questions about Odoo 20 functional configuration from this plugin's knowledge compendium, citing entries and showing exact technical names. Read-only; it never changes Odoo. Use when the user asks what an Odoo setting, feature or flow does, why a plan made a decision, when to use one option over another (lots or serial numbers, fiscal positions, pricelists, multi-company sharing, CFDI), or which model, field or setting implements something, without asking to configure it.
+description: Answer "why", "what is" and "when should I" questions about Odoo 20 functional configuration from this plugin's knowledge compendium, citing entries and showing exact technical names. Read-only; it never changes Odoo. Use when the user asks what an Odoo setting, feature or flow does, why a plan made a decision, when to use one option over another (lots or serial numbers, fiscal positions, pricelists, multi-company sharing, CFDI), or which model, field or setting implements something, without asking to configure it. Not for a business case, requirement, proposal or RFP to solve in Odoo, even when it only asks for a recommendation, nor for a message with a `Target: <name>` line: those go to odoo-functional.
 ---
 
 # Explain Odoo functional configuration
