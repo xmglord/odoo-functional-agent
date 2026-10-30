@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """PreToolUse guard hook (layer b of the demo-only guard).
 
-Reads the Claude Code hook event JSON on stdin. Denies (exit 2, one line on
-stderr) Bash commands that reach Postgres or an Odoo server without going
-through `ofa`, and browser navigation to anything but the local demo server or
-a short documentation allowlist. Allows with exit 0 and no output.
+Reads the Claude Code hook event JSON on stdin. Installed plugins run this for
+every session on the machine, so it does nothing until the session uses the
+agent: invoking a skill of this plugin, running `ofa`, or a prompt with a
+`Target:` line activates it, and a marker file keeps it active for that session.
 
-Fails closed: any parse error, missing field or unexpected exception exits 2.
+In an active session it denies (exit 2, one line on stderr) Bash commands that
+reach Postgres or an Odoo server without going through `ofa`, and browser
+navigation to anything but the local demo server or a short documentation
+allowlist. Allows with exit 0 and no output.
+
+Fails closed only in an active session or on an activating event: there any
+parse error, missing field or unexpected exception exits 2. Anywhere else an
+error exits 0, because it must not block sessions that never used the agent.
 Stdlib only. See docs/guard.md for the rules and the known gaps.
 """
 import json
+import os
 import re
 import shlex
 import sys
+import time
 from urllib.parse import unquote, urlsplit
 
 MAX_DEPTH = 5
@@ -20,6 +29,19 @@ MAX_DEPTH = 5
 BASH_TOOL = "Bash"
 NAV_TOOLS = frozenset({"mcp__firefox-devtools__navigate_page", "mcp__firefox-devtools__new_page"})
 SCRIPT_TOOL = "mcp__firefox-devtools__evaluate_script"
+SKILL_TOOL = "Skill"
+
+# What makes a session an agent session. The marker lives under the plugin's data directory.
+ACTIVATING_SKILLS = frozenset({"odoo-functional-agent:odoo-functional", "odoo-functional-agent:odoo-explain"})
+ACTIVATING_PROMPT_RE = re.compile(
+    r"^[ \t]*(?:target[ \t]*:[ \t]*\S|/odoo-functional-agent:odoo-(?:functional|explain)\b)", re.I | re.M
+)
+OFA_WORD_RE = re.compile(r"(?<![\w.-])ofa(?![\w.-])")
+SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+MARKER_DIR = "active_sessions"
+MARKER_MAX_AGE_SECONDS = 30 * 86400
+# A Bash command may not touch the markers: that would switch the guard off from inside the session.
+MARKER_ACCESS_RE = re.compile(MARKER_DIR + r"|plugins/data|CLAUDE_PLUGIN_DATA")
 
 # In-page JavaScript must never navigate or talk to the network: that would reach
 # any host without going through the navigation rule. ofa's own scripts (render
@@ -300,6 +322,7 @@ def check_segment(tokens, depth, seen, strict=True):
     name = basename(word)
 
     if name == "ofa" or word.endswith("/bin/ofa"):
+        seen.ofa = True
         return
     if strict and word not in ("[", "[[") and DYNAMIC_RE.search(word):
         raise Deny(f"command word {word!r} is computed at run time")
@@ -370,12 +393,15 @@ class Seen(set):
     def __init__(self):
         super().__init__()
         self.texts = []
+        self.ofa = False
 
 
 def check_bash(cmd):
     seen = Seen()
     check_command(cmd, 0, seen)
     texts = [LINE_CONTINUATION_RE.sub(r"\1", cmd)] + seen.texts
+    if any(MARKER_ACCESS_RE.search(t) for t in texts):
+        raise Deny("command touches the guard's session markers")
     if seen and any(RAW_ODOO_RE.search(t) for t in texts):
         raise Deny("network or interpreter call to an Odoo endpoint, an Odoo port or the Postgres port")
     if "interpreter" in seen and any(RAW_INTERPRETER_RE.search(t) for t in texts):
@@ -413,12 +439,70 @@ def check_script(fn):
         raise Deny(f"in-page script uses {m.group(0)!r}; scripts may not navigate or use the network")
 
 
+# ----------------------------------------------------------- session scope
+
+def marker_path(event):
+    """Path of this session's marker, or None when the event or environment cannot name one."""
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    session_id = event.get("session_id")
+    if not data_dir or not isinstance(session_id, str) or not SESSION_ID_RE.match(session_id):
+        return None
+    return os.path.join(data_dir, MARKER_DIR, session_id)
+
+
+def command_uses_ofa(cmd):
+    seen = Seen()
+    try:
+        check_command(cmd, 0, seen)
+    except Exception:  # a denied or unparsable line may still run ofa: fall back to the plain word
+        return bool(OFA_WORD_RE.search(cmd))
+    return seen.ofa
+
+
+def is_activating(event):
+    name = event.get("hook_event_name")
+    if name == "UserPromptSubmit":
+        prompt = event.get("prompt")
+        return isinstance(prompt, str) and bool(ACTIVATING_PROMPT_RE.search(prompt))
+    if name != "PreToolUse":
+        return False
+    tool_input = event.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return False
+    if event.get("tool_name") == SKILL_TOOL:
+        return tool_input.get("skill") in ACTIVATING_SKILLS
+    cmd = tool_input.get("command")
+    return event.get("tool_name") == BASH_TOOL and isinstance(cmd, str) and command_uses_ofa(cmd)
+
+
+def prune_markers(directory, now):
+    """Drop markers of sessions that ended without a SessionEnd event. Never fails the activation."""
+    try:
+        for entry in os.scandir(directory):
+            if now - entry.stat().st_mtime > MARKER_MAX_AGE_SECONDS:
+                os.unlink(entry.path)
+    except OSError:
+        pass
+
+
+def activate(marker):
+    if marker is None:
+        raise ValueError("no session id or plugin data directory to record the session in")
+    directory = os.path.dirname(marker)
+    os.makedirs(directory, exist_ok=True)
+    with open(marker, "a"):
+        pass
+    prune_markers(directory, time.time())
+
+
 # --------------------------------------------------------------------- main
 
 def decide(event):
-    """Raise Deny, or return None to allow."""
+    """Raise Deny, or return None to allow. Only called for active sessions."""
     if not isinstance(event, dict):
         raise ValueError("event is not an object")
+    if event.get("hook_event_name") == "UserPromptSubmit":
+        return
     tool = event["tool_name"]
     tool_input = event["tool_input"]
     if tool == BASH_TOOL:
@@ -436,15 +520,40 @@ def decide(event):
         if not isinstance(url, str):
             raise TypeError("url is not a string")
         check_url(url)
-    else:
+    elif tool != SKILL_TOOL:
         raise Deny(f"unexpected tool {tool!r} routed to the guard")
+
+
+def session_state(stdin):
+    """(event, marker, active, activating). Nothing here may raise: errors mean an inactive session."""
+    try:
+        event = json.loads(stdin.read())
+        if not isinstance(event, dict):
+            return None, None, False, False
+        marker = marker_path(event)
+        active = marker is not None and os.path.exists(marker)
+        try:
+            activating = is_activating(event)
+        except Exception:
+            activating = False
+        return event, marker, active, activating
+    except BaseException:
+        return None, None, False, False
 
 
 def main(stdin=None, stderr=None):
     stdin = sys.stdin if stdin is None else stdin
     stderr = sys.stderr if stderr is None else stderr
+    event, marker, active, activating = session_state(stdin)
+    if not active and not activating:
+        return 0
     try:
-        decide(json.loads(stdin.read()))
+        if event.get("hook_event_name") == "SessionEnd":
+            os.unlink(marker)
+            return 0
+        if activating and not active:
+            activate(marker)
+        decide(event)
         return 0
     except Deny as e:
         print(f"ofa guard: denied: {e}", file=stderr)

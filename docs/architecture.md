@@ -36,7 +36,7 @@ commands.
 
 **Decision.** Layer a sits in the `ofa` client constructor, so no subcommand can skip it: the target must be
 registered by `ofa provision`, named `ofa_demo_*`, on loopback, and carry the marker UUID recorded at provisioning.
-Only `provision` creates API keys. Layer b is a PreToolUse hook shipped with the plugin that denies shell commands
+Only `provision` creates API keys. Layer b is a PreToolUse hook shipped with the plugin, active only once a session uses the agent, that denies shell commands
 reaching Odoo or Postgres outside `ofa`, and browser navigation off loopback. The Odoo server config is hardened
 (`list_db`, `dbfilter`, no cron threads), and `ofa server start` refuses one that is not.
 

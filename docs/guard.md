@@ -30,22 +30,65 @@ the JSON-2 API). That is layer b's job.
 
 ## Layer b: the PreToolUse hook
 
-The plugin ships `hooks/hooks.json`, which runs `hooks/ofa_guard_hook.py` before every `Bash` call and every
-`mcp__firefox-devtools__navigate_page` / `mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script`
-call. The hook reads the event JSON on stdin (`tool_name`, and `tool_input.command`, `tool_input.url` or
-`tool_input.function`) and either exits 0 with no output (allow) or exits 2
+The plugin ships `hooks/hooks.json`, which runs `hooks/ofa_guard.sh` (a small wrapper around
+`hooks/ofa_guard_hook.py`) before every `Bash` call and every `mcp__firefox-devtools__navigate_page` /
+`mcp__firefox-devtools__new_page` / `mcp__firefox-devtools__evaluate_script` call, plus on `Skill` calls,
+`UserPromptSubmit` and `SessionEnd`. In an active session the hook reads the event JSON on stdin (`tool_name`, and
+`tool_input.command`, `tool_input.url` or `tool_input.function`) and either exits 0 with no output (allow) or exits 2
 with one line on stderr (deny); Claude Code shows that line to the model.
+
+### When it acts
+
+An installed plugin's hooks run in every Claude Code session on the machine, whatever the project. So **the hook
+acts only from the moment a session uses the agent; before that it allows everything and there is no protection.**
+Other projects keep working: `psql`, `odoo-bin` and any browser navigation pass in a session that never touched the
+agent.
+
+A session becomes active, and stays active, on the first of these:
+
+- a `Skill` call for `odoo-functional-agent:odoo-functional` or `odoo-functional-agent:odoo-explain`
+- a Bash command that has `ofa` (or a path ending in `/bin/ofa`) in a command position
+- a prompt with a `Target: <name>` line, or a prompt that starts with `/odoo-functional-agent:odoo-functional` or
+  `/odoo-functional-agent:odoo-explain` (a skill typed by the user makes no `Skill` call)
+
+Activation writes an empty marker at `${CLAUDE_PLUGIN_DATA}/active_sessions/<session_id>`. `SessionEnd` removes it,
+and each activation prunes markers older than 30 days, left by sessions that ended without that event. The activating
+call is itself checked, so `ofa status; psql -l` is denied. Subagents are covered: a subagent's hook event carries the
+parent's `session_id` (measured with Claude Code 2.1.312). This is why the hook is not declared in the skills'
+frontmatter: Claude Code supports that, but such a hook does not run inside subagents (same measurement).
+
+What can leave an agent session without the guard:
+
+- **By accident.** The model works without invoking a skill, running `ofa` or seeing a `Target:` line. A raw `psql` in
+  that session is not checked, and layer a does not cover it.
+- **`/clear`: not measured.** It may start a new `session_id`. If it does, the session is inactive again until the
+  next activating event.
+- **`--resume`: measured only for `claude -p`, 2.1.312, one run.** The resumed session keeps its `session_id`, but
+  `SessionEnd` already removed the marker, so the raw `psql` it ran next was allowed. It is inactive until the next
+  activating event. The same is expected for an interactive `--resume`, which was not measured. Compaction keeps the
+  session running and is not expected to change this, also not measured.
+- **On purpose.** `disableAllHooks` or `--settings '{"disableAllHooks": true}'`. Deleting the marker is denied for
+  Bash commands that mention `active_sessions`, `plugins/data` or `CLAUDE_PLUGIN_DATA`, but a script file that deletes
+  it is not inspected (see [Known gaps](#known-gaps)).
 
 ### Failure handling
 
+- A hook failure must not block sessions that never used the agent, so the order is fixed: first decide whether the
+  session is active or the event activates it. **With no marker and no activating event the hook exits 0, even on
+  invalid JSON or a missing `session_id`.**
+- In an active session, or on an activating event, any error denies: a missing `tool_input`, `command` or `url`, a
+  tokenizer error (for example an unbalanced quote), a marker that cannot be written, or any unexpected exception exits
+  2 with `ofa guard: internal error, denying (<exception class>)`.
 - Every handler has `"timeout": 10` and `"onFailure": "block"`. Without `onFailure`, Claude Code lets the tool
   call through when a hook crashes (exit 1) or times out; with it, both block. This was verified against Claude
-  Code 2.1.310.
-- Inside the script, `main()` is a catch-all: malformed JSON, a missing `tool_input`, `command` or `url`, a
-  tokenizer error (for example an unbalanced quote) or any unexpected exception exits 2 with
-  `ofa guard: internal error, denying (<exception class>)`. This is the in-script control; `onFailure: "block"`
-  covers what the script cannot catch itself (interpreter crash, timeout).
-- The hook only runs for its matched tools, so failing closed blocks only `Bash` and the two navigation tools.
+  Code 2.1.310. That setting cannot tell sessions apart, so the failures Python cannot report are sorted out before
+  they reach Claude Code: `ofa_guard.sh` runs Python under an 8 second limit, and on any result other than 0 or 2
+  (Python missing, crashed, hung) it denies only if the session's marker exists or the event looks activating, and
+  otherwise exits 0. The command in `hooks.json` does the same marker check if the wrapper itself is gone.
+- What remains: if `sh` cannot start, `onFailure` blocks the call in every session. Claude Code's Bash tool needs a
+  shell too, so that machine is already broken.
+- With Python broken, the wrapper's activation check is coarser than Python's: it denies any event with the word `ofa`
+  or the plugin's skill prefix, and prompts with a `Target:` text anywhere.
 
 ### Bash rules
 
@@ -83,6 +126,8 @@ with one line on stderr (deny); Claude Code shows that line to the model.
    `import odoo` / `from odoo`, or a bare `80xx` / `5432` number.
 9. **`ofa` is allowed.** A command word `ofa`, or a path ending in `/bin/ofa`, is allowed; the other commands in
    the same line are still checked.
+10. **Session markers.** A command that mentions `active_sessions`, `plugins/data` or `CLAUDE_PLUGIN_DATA` is denied,
+    in any position, so a session cannot switch its own guard off from the command line.
 
 Words are matched in command position only, so `grep -rn psql src/` and `git commit -m "mention psql"` are
 allowed and the repo stays developable with the plugin enabled.
@@ -184,6 +229,6 @@ HTTP API. Known gaps:
   characters (`echo ";" psql`), any word after a runner prefix (`xargs grep psql`, `timeout 5 grep psql`),
   interpreter commands that mention a denied word or port in any
   form, and any host on ports `8060-8099`. Run those through a script file or rephrase them.
-- **Hook not loaded.** The hook protects only sessions where the plugin is enabled. In a session without it (for
-  example the development session that runs acceptance checks with raw `psql`), only layer a and the server
-  hardening apply.
+- **Hook not loaded or not active.** The hook protects only sessions where the plugin is enabled, and only after the
+  session activates it (see [When it acts](#when-it-acts)). In any other session (for example the development session
+  that runs acceptance checks with raw `psql`), only layer a and the server hardening apply.
