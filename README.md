@@ -138,6 +138,13 @@ example's README marks what came from it.
 Where a run had to be repeated by the project's maintainer (a fresh database, a newer `ofa`, screenshots), the
 example says so and keeps the skill's own run as it was.
 
+## How it was planned
+
+This plugin was built from the plan of an experimental planning pipeline, as a test of that pipeline. It is one
+build, with nothing built to compare against, so it says little about the method; the
+[case study](https://github.com/xmglord/xmglord/blob/main/case_studies/planning_council_odoo_agent.md) reports what
+was measured and its limits.
+
 ## Requirements
 
 - **Your own Odoo 20.0** source checkout and PostgreSQL. The Enterprise addons are needed for the examples and for
