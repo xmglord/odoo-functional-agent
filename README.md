@@ -154,8 +154,65 @@ Setup: [docs/setup.md](docs/setup.md). Keeping the knowledge current:
 /plugin install odoo-functional-agent@xmglord
 ```
 
-Then ask Claude Code for a configuration ("set up two-step receipts with lots for these food products...") on a
-demo target, or ask `odoo-explain` why Odoo does something.
+Finish [the setup](docs/setup.md) once (your Odoo 20.0, the `ofa` config and the template database), then go to
+[Using it](#using-it).
+
+## Using it
+
+The one thing to remember: type `/odoo-functional-agent:odoo-functional` (typing `/odoo` brings it up in the
+autocomplete) and paste the requirement in the same message.
+
+```
+/odoo-functional-agent:odoo-functional We are a bike shop. Any quote with a discount above 10% needs a sales
+manager's approval before it can be confirmed, and every bike must be traceable by serial number from receipt
+to delivery.
+```
+
+Ask for the skill by name rather than describing the need and waiting for it to start.
+
+### What happens
+
+1. **It checks your setup and starts the local Odoo server.** If the check finds a problem, it shows it and stops.
+2. **It creates a demo database** for this requirement. If one with that name exists, it asks whether to reuse or
+   reset it.
+3. **It may ask up to 3 questions**, only about decisions that change the configuration. Real names and tax ids in
+   your text are replaced with fictional ones, and it tells you which.
+4. **It stops with the plan and the Test plan.** You read what it will configure and why, which test proves each
+   need, and which needs will not be tested.
+5. **Nothing is applied until you approve explicitly**, with a message like "approved" or "yes, apply it". A question
+   or a comment is not approval, and neither is having said "do everything" earlier. If the plan changes after that,
+   it asks again.
+6. **It applies the plan, runs the tests and delivers the report**: pass or fail for each need, every difference from
+   the Test plan you approved, what has to be done by hand in the Odoo screens, and what it learned about your case
+   in business terms.
+
+### What it asks of you, and when
+
+- **Your answers and your approval**, in steps 3 to 5.
+- **Firefox, only for screenshots, and it is optional.** After the tests it uses the browser if it is available; if
+  not, it asks you to start it and to keep the window visible. Without screenshots, the evidence is the records the
+  tests read back.
+- **Cleanup, at the end.** The demo database stays so you can look at it. The skill offers to drop it and does so
+  only if you say yes.
+
+### What you get, and what you do not
+
+You get a plan proven on a demo database: the requirement, `plan.json`, `plan.md`, the test scenarios and a run
+report, all under `plans/<slug>/` in the folder where you started Claude Code.
+
+It never touches a real Odoo. `ofa` works only on the local demo databases it created, so moving the result to a
+production system is your decision and your work.
+
+### Asking a question
+
+To understand Odoo rather than change it, use `odoo-explain` the same way:
+
+```
+/odoo-functional-agent:odoo-explain when should I use lots instead of serial numbers?
+```
+
+It answers from the plugin's knowledge compendium, cites the entries and says so when no entry covers the question.
+It never changes Odoo.
 
 ## License
 
