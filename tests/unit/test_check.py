@@ -13,6 +13,19 @@ SKILL = ROOT / "skills" / "help" / "SKILL.md"
 CONFIG = """[server]
 url = "http://127.0.0.1:1"
 """
+SERVER = """[server]
+odoo_bin = "/nonexistent/odoo-bin"
+python = "/nonexistent/python"
+odoo_conf = "{conf}"
+url = "http://127.0.0.1:1"
+odoo_version = "20.0"
+edition = "community"
+template_db = "ofa_tpl_20"
+template_modules = ["crm"]
+log_file = "/nonexistent/odoo.log"
+xmlid_store = "ir_model_data"
+"""
+HARDENED = "[options]\ndb_user = demo\ndbfilter = ^ofa_demo_.*$\nmax_cron_threads = 0\nlist_db = False\n"
 
 
 def snapshot(directory):
@@ -45,6 +58,40 @@ class CheckTest(unittest.TestCase):
             before = snapshot(d)
             self.run_check(d)
             self.assertEqual(snapshot(d), before)
+
+
+class DoctorTemplateTest(unittest.TestCase):
+    """The template line comes from a read of pg_database, faked here with a psql on PATH."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        d = Path(self.tmp.name)
+        conf = d / "odoo20.conf"
+        conf.write_text(HARDENED)
+        (d / "config.toml").write_text(SERVER.format(conf=conf))
+        self.fake = d / "psql"
+        self.env = dict(os.environ, OFA_CONFIG_DIR=str(d), PATH=f"{d}:{os.environ['PATH']}")
+
+    def doctor(self, psql_body):
+        self.fake.write_text("#!/bin/sh\n" + psql_body + "\n")
+        self.fake.chmod(0o755)
+        p = subprocess.run([str(ROOT / "bin" / "ofa"), "doctor"], capture_output=True, text=True, env=self.env)
+        return next(l for l in p.stdout.splitlines() if "template database" in l)
+
+    def test_found(self):
+        self.assertEqual(self.doctor("echo 1"), "OK\ttemplate database\tofa_tpl_20")
+
+    def test_not_found(self):
+        self.assertEqual(self.doctor("exit 0"), "FAIL\ttemplate database\tofa_tpl_20 not found")
+
+    def test_postgres_unreachable(self):
+        self.assertIn("PG_ERROR", self.doctor("echo 'connection refused' >&2; exit 2"))
+
+    def test_query_only_reads_pg_database(self):
+        log = Path(self.tmp.name, "calls")
+        self.doctor(f'printf "%s\\n" "$*" > {log}; echo 1')
+        self.assertIn("SELECT 1 FROM pg_database WHERE datname = 'ofa_tpl_20'", log.read_text())
 
 
 class HelpSkillTest(unittest.TestCase):

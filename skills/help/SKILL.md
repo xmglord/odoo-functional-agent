@@ -44,13 +44,12 @@ what is not, what is missing and how to fix it. Setup steps are in `${CLAUDE_PLU
 | `Python 3.11 or newer is required` | `ofa` needs Python 3.11 or newer | install it |
 | `FAIL` on `config readable` | no valid `ofa` config | step 3 of the setup |
 | `FAIL` on `odoo conf hardened` | the Odoo config lacks a required setting | step 2 of the setup |
+| `FAIL` on `template database`, "not found" | the template was never built | step 4 of the setup |
+| `FAIL` on `template database`, `PSQL_MISSING` or `PG_ERROR` | `ofa` cannot reach Postgres | step 1 of the setup, and show the error |
 | `FAIL` on `server port answers`, `"alive": false` | the server is stopped | nothing: `odoo-functional` starts it |
 | `"alive": true`, `"port_answers": false` | the server is still starting | wait and check again |
 | `"alive": false`, `"port_answers": true` | something else is using the server's port | free the port |
 | nothing listed under `ofa targets` | no demo database yet | nothing: `odoo-functional` creates one |
-
-`ofa-check` cannot see whether the template database exists. If this is the first use, tell the user that step 4 of
-the setup must be done once, and that `odoo-functional` will fail creating a demo database without it.
 
 Firefox is optional and only for screenshots. If either port is listening, say it is available. If not, say the run
 still works and the evidence will be the records the tests read back; the user can start the browser when asked.

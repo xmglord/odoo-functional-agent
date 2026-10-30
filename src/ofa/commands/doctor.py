@@ -3,7 +3,7 @@ import socket
 import sys
 from urllib.parse import urlsplit
 
-from ofa import client, config, guard
+from ofa import client, config, guard, pg
 from ofa.errors import ENVIRONMENT, OK, OfaError
 
 
@@ -47,6 +47,12 @@ def handler(args):
         r.line(not problems, "odoo conf hardened", "; ".join(problems) or str(cfg.server.odoo_conf))
     except OfaError as e:
         r.line(False, "odoo conf hardened", f"{e.label}: {e.msg}", e.exit_code)
+    template = cfg.server.template_db
+    try:
+        found = pg.db_exists(cfg.server, template)
+        r.line(found, "template database", template if found else f"{template} not found")
+    except OfaError as e:
+        r.line(False, "template database", f"{e.label}: {e.msg}", e.exit_code)
     server_up = r.line(_port_answers(cfg.server.url), "server port answers", cfg.server.url)
     if args.target:
         if not server_up:

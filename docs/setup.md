@@ -41,6 +41,8 @@ setup with:
 ofa doctor
 ```
 
+At this point `template database` and `server port answers` still say `FAIL`; the next two steps fix them.
+
 ## 4. The template database
 
 ```
