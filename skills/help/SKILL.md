@@ -41,6 +41,7 @@ what is not, what is missing and how to fix it. Setup steps are in `${CLAUDE_PLU
 | What you see | What it means | Fix |
 |---|---|---|
 | `ofa-check: command not found` | the plugin is not enabled in this session | enable it and start a new session |
+| no `==` report: `python3` not found, no output, a non-zero exit or `ofa guard: the guard could not run` | `python3` is missing or broken, so `ofa` and the guard cannot run | repair `python3` (`python3 --version` must work); nothing else can be checked until then |
 | `Python 3.11 or newer is required` | `ofa` needs Python 3.11 or newer | install it |
 | `FAIL` on `config readable` | no valid `ofa` config | step 3 of the setup |
 | `FAIL` on `odoo conf hardened` | the Odoo config lacks a required setting | step 2 of the setup |

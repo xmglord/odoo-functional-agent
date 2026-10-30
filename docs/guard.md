@@ -97,8 +97,8 @@ What can leave an agent session without the guard:
 - What remains: if `sh` cannot start, `onFailure` blocks the call in every session. Claude Code's Bash tool needs a
   shell too, so that machine is already broken.
 - With Python broken, the wrapper's activation check is coarser than Python's: it denies any event with the word `ofa`
-  or the plugin's skill prefix (so `help` too, which could not run `ofa-check` anyway), and prompts with a `Target:` text
-  anywhere.
+  or the plugin's skill prefix, and prompts with a `Target:` text anywhere. The exact name of the `help` skill does not
+  count, as in Python, so `help` can still say what is wrong.
 
 ### Bash rules
 

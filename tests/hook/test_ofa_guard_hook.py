@@ -549,8 +549,34 @@ class WrapperTest(unittest.TestCase):
         for name in ("sed", "head", "grep", "dirname", "cat"):
             (tools / name).symlink_to(shutil.which(name))
         self.assertEqual(self.run_wrapper(bash_event("psql -l"), path=str(tools)), 0)
+        help_skill = {"session_id": "n", "hook_event_name": "PreToolUse", "tool_name": "Skill",
+                      "tool_input": {"skill": "odoo-functional-agent:help"}}
+        self.assertEqual(self.run_wrapper(help_skill, path=str(tools)), 0)
         self.activate()
         self.assertEqual(self.run_wrapper(bash_event("ls"), path=str(tools)), 2)
+
+    def test_help_is_not_activating_when_python_cannot_run(self):
+        self.fake_python("exit 1")
+        skill = {"session_id": "n", "hook_event_name": "PreToolUse", "tool_name": "Skill",
+                 "tool_input": {"skill": "odoo-functional-agent:help"}}
+        prompt = {"session_id": "n", "hook_event_name": "UserPromptSubmit"}
+        self.assertEqual(self.run_wrapper(skill), 0)
+        for text in ["/odoo-functional-agent:help", "/odoo-functional-agent:help how do I start?"]:
+            with self.subTest(text=text):
+                self.assertEqual(self.run_wrapper(dict(prompt, prompt=text)), 0)
+        for text in ["/odoo-functional-agent:helper", "/odoo-functional-agent:help-x", "/odoo-functional-agent:help ofa",
+                     "/odoo-functional-agent:help\n/odoo-functional-agent:odoo-functional x",
+                     "/odoo-functional-agent:help\nTarget: x"]:
+            with self.subTest(text=text):
+                self.assertEqual(self.run_wrapper(dict(prompt, prompt=text)), 2)
+        self.assertEqual(self.run_wrapper(dict(skill, tool_input={"skill": "odoo-functional-agent:helper"})), 2)
+
+    def test_help_is_denied_in_an_active_session_when_python_cannot_run(self):
+        self.fake_python("exit 1")
+        Path(self.data, "active_sessions", "n").touch()
+        skill = {"session_id": "n", "hook_event_name": "PreToolUse", "tool_name": "Skill",
+                 "tool_input": {"skill": "odoo-functional-agent:help"}}
+        self.assertEqual(self.run_wrapper(skill), 2)
 
     def test_ofa_check_is_not_activating_when_python_cannot_run(self):
         self.fake_python("exit 1")

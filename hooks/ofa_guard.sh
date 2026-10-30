@@ -26,7 +26,9 @@ session_id=$(printf '%s' "$input" | sed -n 's/.*"session_id"[[:space:]]*:[[:spac
 if [ -n "$session_id" ] && [ -e "$CLAUDE_PLUGIN_DATA/active_sessions/$session_id" ]; then
     deny
 fi
-if printf '%s' "$input" | grep -Eq 'odoo-functional-agent:|(^|[^[:alnum:]_.-])ofa([^[:alnum:]_.-]|$)'; then
+# The help skill is not an activating event, as in the Python guard; any other use of the prefix is.
+rest=$(printf '%s' "$input" | sed 's/odoo-functional-agent:help\([^[:alnum:]_-]\)/\1/g')
+if printf '%s' "$rest" | grep -Eq 'odoo-functional-agent:|(^|[^[:alnum:]_.-])ofa([^[:alnum:]_.-]|$)'; then
     deny
 fi
 if printf '%s' "$input" | grep -q '"hook_event_name"[[:space:]]*:[[:space:]]*"UserPromptSubmit"' \
