@@ -458,14 +458,19 @@ class SessionScopeTest(unittest.TestCase):
         event = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": "ofa status"}}
         self.assertEqual(run(json.dumps(event))[0], 2)
 
-    def test_session_end_removes_marker(self):
+    def test_denying_leaves_the_marker_in_place(self):
         run(json.dumps(self.prompt("Target: x")))
+        self.assertEqual(run(json.dumps(self.bash("psql -l")))[0], 2)
         self.assertTrue(self.marker.exists())
-        self.assertEqual(run(json.dumps({"session_id": "new", "hook_event_name": "SessionEnd", "reason": "other"})), (0, ""))
-        self.assertFalse(self.marker.exists())
 
-    def test_session_end_of_inactive_session(self):
-        self.assertEqual(run(json.dumps({"session_id": "new", "hook_event_name": "SessionEnd"})), (0, ""))
+    def test_use_refreshes_the_marker(self):
+        run(json.dumps(self.prompt("Target: x")))
+        os.utime(self.marker, (1, 1))
+        run(json.dumps(self.bash("ls")))
+        self.assertGreater(self.marker.stat().st_mtime, 1)
+
+    def test_age_limit_matches_transcript_retention(self):
+        self.assertEqual(hook.MARKER_MAX_AGE_SECONDS, 30 * 86400)
 
     def test_markers_are_off_limits_in_active_session(self):
         run(json.dumps(self.prompt("Target: x")))
@@ -551,6 +556,7 @@ class HooksJsonTest(unittest.TestCase):
 
     def test_handlers(self):
         hooks = self.handlers()
+        self.assertEqual(set(hooks), {"PreToolUse", "UserPromptSubmit"})
         self.assertEqual({e["matcher"] for e in hooks["PreToolUse"]}, {"Bash", "Skill", f"{NAVIGATE}|{NEW_PAGE}|{EVALUATE}"})
         for entries in hooks.values():
             for e in entries:

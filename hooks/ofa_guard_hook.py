@@ -39,6 +39,7 @@ ACTIVATING_PROMPT_RE = re.compile(
 OFA_WORD_RE = re.compile(r"(?<![\w.-])ofa(?![\w.-])")
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MARKER_DIR = "active_sessions"
+# Claude Code's default transcript retention (cleanupPeriodDays): an older session cannot be resumed.
 MARKER_MAX_AGE_SECONDS = 30 * 86400
 # A Bash command may not touch the markers: that would switch the guard off from inside the session.
 MARKER_ACCESS_RE = re.compile(MARKER_DIR + r"|plugins/data|CLAUDE_PLUGIN_DATA")
@@ -476,7 +477,7 @@ def is_activating(event):
 
 
 def prune_markers(directory, now):
-    """Drop markers of sessions that ended without a SessionEnd event. Never fails the activation."""
+    """Drop markers unused for MARKER_MAX_AGE_SECONDS. Never fails the activation."""
     try:
         for entry in os.scandir(directory):
             if now - entry.stat().st_mtime > MARKER_MAX_AGE_SECONDS:
@@ -548,10 +549,9 @@ def main(stdin=None, stderr=None):
     if not active and not activating:
         return 0
     try:
-        if event.get("hook_event_name") == "SessionEnd":
-            os.unlink(marker)
-            return 0
-        if activating and not active:
+        if active:
+            os.utime(marker)  # the age counts from the last use, so a session in use never lapses
+        else:
             activate(marker)
         decide(event)
         return 0

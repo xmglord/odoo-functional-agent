@@ -68,9 +68,8 @@ alone. Full detail: [docs/guard.md](docs/guard.md).
 - **Layer b, a PreToolUse hook** shipped with the plugin. It checks every shell command and denies direct `psql`,
   `odoo-bin`, HTTP calls to Odoo and browser navigation off loopback. It acts only from the moment a session uses
   the agent (a skill of this plugin, an `ofa` command or a `Target:` line in a prompt), so your other projects are not
-  affected, and before that moment there is no protection. `/clear` is not measured, and a session resumed with
-  `claude -p --resume` stays inactive until its next activating event; if either gives the session a new id or drops
-  its marker, the same applies. See [When it acts](docs/guard.md#when-it-acts).
+  affected, and before that moment there is no protection. A resumed session stays guarded for 30 days after its last use. `/clear` is not measured: if it starts a new session
+  id, the session is inactive until its next activating event. See [When it acts](docs/guard.md#when-it-acts).
 - **Server hardening.** `list_db = False`, `dbfilter = ^ofa_demo_.*$`, `max_cron_threads = 0`; `ofa server start`
   refuses a config without them.
 - **Test identities** cannot be administrators: a role a plan gives them is checked before and after writing.

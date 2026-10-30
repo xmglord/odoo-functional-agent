@@ -46,18 +46,6 @@
           }
         ]
       }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "f=\"${CLAUDE_PLUGIN_ROOT}/hooks/ofa_guard.sh\"; [ -f \"$f\" ] && exec sh \"$f\"; i=$(cat); s=$(printf %s \"$i\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([A-Za-z0-9_-]*\\)\".*/\\1/p' | head -n 1); [ -n \"$s\" ] && [ -e \"$CLAUDE_PLUGIN_DATA/active_sessions/$s\" ] && { echo \"ofa guard: the guard could not run, denying\" >&2; exit 2; }; exit 0",
-            "timeout": 10,
-            "onFailure": "block"
-          }
-        ]
-      }
     ]
   }
 }
