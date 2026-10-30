@@ -27,8 +27,16 @@ so pulling a newer 20.0 lists every entry checked before that code. For each lis
 Library scenarios in `scenarios/<version>/<area>/` are part of the same check: run them on a fresh demo database
 after the template is rebuilt.
 
-Each area's `INDEX.md` keeps an upkeep log: per entry, the agent's tokens and minutes to write or re-check it and
-the minutes the author spent reviewing it. It is there to measure what the compendium costs to keep current.
+Each area's `INDEX.md` keeps an upkeep log: per entry, the agent's tokens and minutes to write or re-check it. It is
+there to measure what the compendium costs to keep current.
+
+## Dated checks
+
+- **April 2027: the demo CSDs of `l10n_mx_edi`.** They expire on 2027-01-18 (company 5) and 2027-05-18 (company 4), and
+  they come with the Enterprise demo data, so rebuilding the template from the same checkout does not renew them. Pull
+  the latest 20.0, rebuild the template and read the new `date_end`. If they were renewed, update the dates in the
+  [README](../README.md), the [Mexican example](../examples/l10n_mx_cfdi_ready_company/README.md) and
+  `knowledge/20.0/l10n_mx/`. If they were not, stamping stops on those dates: say so in the same places.
 
 ## A new Odoo version
 
