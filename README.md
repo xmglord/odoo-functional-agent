@@ -140,8 +140,9 @@ example says so and keeps the skill's own run as it was.
 
 ## How it was planned
 
-This plugin was built from the plan of an experimental planning pipeline, as a test of that pipeline. It is one
-build, with nothing built to compare against, so it says little about the method; the
+This plugin was built from the plan of an experimental planning pipeline,
+[council](https://github.com/xmglord/council), as a test of that pipeline. Plan mode's plan was later built for
+comparison, in a separate local build. That is one run of each on one app, so it says little about the method; the
 [case study](https://github.com/xmglord/xmglord/blob/main/case_studies/planning_council_odoo_agent.md) reports what
 was measured and its limits.
 
